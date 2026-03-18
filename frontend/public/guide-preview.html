@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aperçu — Guide Pennylane</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #f0ece4; display: flex; align-items: flex-start; justify-content: flex-end; min-height: 100vh; }
+
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); }
+
+    .panel {
+      position: fixed; right: 0; top: 0; height: 100vh; width: 480px;
+      background: white; display: flex; flex-direction: column;
+      box-shadow: -4px 0 32px rgba(0,0,0,0.15); z-index: 10;
+    }
+
+    /* Header */
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 24px; border-bottom: 1px solid #e2e8f0;
+    }
+    .panel-header h2 { font-size: 15px; font-weight: 700; color: #1a1a1a; }
+    .panel-header p  { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .close-btn {
+      width: 32px; height: 32px; border-radius: 8px; border: none;
+      background: #f1f5f9; cursor: pointer; font-size: 18px; color: #6b7280;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Warning banner */
+    .warning {
+      margin: 16px 24px 0; padding: 12px 16px;
+      background: #fef9c3; border-left: 3px solid #a16207;
+      border-radius: 8px;
+    }
+    .warning .title { font-size: 11px; font-weight: 600; color: #a16207; }
+    .warning .body  { font-size: 11px; color: #6b7280; margin-top: 4px; line-height: 1.5; }
+
+    /* Steps */
+    .steps { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 24px; }
+
+    .step { display: flex; gap: 16px; }
+    .step-num {
+      flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+      background: #978A47; color: white; font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; margin-top: 2px;
+    }
+    .step-content { flex: 1; }
+    .step-title   { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 4px; }
+    .step-desc    { font-size: 12px; color: #374151; line-height: 1.5; }
+    .step-tip {
+      font-size: 11px; color: #6b7280; background: #f8fafc;
+      padding: 8px 12px; border-radius: 8px; margin-top: 6px; line-height: 1.5;
+    }
+    .screenshot-placeholder {
+      width: 100%; height: 130px; border: 2px dashed #e2e8f0;
+      border-radius: 10px; background: #f8fafc;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; margin-top: 8px;
+    }
+    .screenshot-placeholder .icon { font-size: 26px; }
+    .screenshot-placeholder .label { font-size: 11px; color: #9ca3af; font-weight: 500; }
+    .screenshot-placeholder .sub   { font-size: 10px; color: #d1d5db; }
+
+    /* Help box */
+    .help-box {
+      border: 1px solid #e2e8f0; background: #f8fafc;
+      border-radius: 12px; padding: 16px;
+    }
+    .help-box .title { font-size: 12px; font-weight: 600; color: #1a1a1a; margin-bottom: 8px; }
+    .help-box ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .help-box li { font-size: 11px; color: #6b7280; line-height: 1.4; }
+    code { background: #e2e8f0; padding: 1px 5px; border-radius: 4px; font-size: 10px; }
+
+    /* Footer */
+    .panel-footer { padding: 16px 24px; border-top: 1px solid #e2e8f0; }
+    .panel-footer button {
+      width: 100%; padding: 11px; border-radius: 10px; border: none;
+      background: #978A47; color: white; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+    }
+
+    /* Page behind */
+    .page-bg {
+      width: calc(100vw - 480px); padding: 40px;
+    }
+    .page-bg .card {
+      background: white; border-radius: 16px; padding: 32px;
+      border: 1px solid #e2e8f0; max-width: 520px;
+    }
+    .page-bg .card h1 { font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px; }
+    .page-bg .card p  { font-size: 13px; color: #9ca3af; margin-bottom: 24px; }
+    .sci-label { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    .sci-row { display: flex; gap: 12px; align-items: center; }
+    .sci-select {
+      flex: 1; border: 1px solid #e2e8f0; border-radius: 10px;
+      padding: 10px 14px; font-size: 13px; color: #1a1a1a; font-family: 'Inter', sans-serif;
+    }
+    .help-btn {
+      width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid #978A47;
+      background: white; color: #978A47; font-weight: 700; font-size: 15px;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      flex-shrink: 0;
+    }
+    .info-box {
+      background: #F5F0DC; border: 1px solid #E8DFC0; border-radius: 12px;
+      padding: 16px; margin-bottom: 20px;
+    }
+    .info-box .t { font-size: 13px; font-weight: 600; color: #978A47; margin-bottom: 4px; }
+    .info-box .d { font-size: 11px; color: #6b7280; line-height: 1.5; }
+  </style>
+</head>
+<body>
+
+<!-- Page en arrière-plan -->
+<div class="page-bg">
+  <div class="card">
+    <h1>Encaissements</h1>
+    <p>Onglet 🏦 Pennylane — vue de connexion</p>
+    <div class="info-box">
+      <div class="t">🏦 Synchronisation Pennylane</div>
+      <div class="d">Chaque société dispose de son propre workspace Pennylane. Sélectionnez la société pour laquelle vous souhaitez importer des transactions.</div>
+    </div>
+    <div class="sci-label">Société (SCI)</div>
+    <div class="sci-row">
+      <select class="sci-select">
+        <option>— Sélectionner une SCI —</option>
+        <option>SCI STANISLAS</option>
+      </select>
+      <div class="help-btn">?</div>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay -->
+<div class="overlay"></div>
+
+<!-- Panneau guide -->
+<div class="panel">
+  <div class="panel-header">
+    <div>
+      <h2>🏦 Guide de connexion Pennylane</h2>
+      <p>Suivez ces étapes pour générer et connecter votre token API</p>
+    </div>
+    <button class="close-btn">×</button>
+  </div>
+
+  <div class="warning">
+    <div class="title">⚠️ Important — un token par société</div>
+    <div class="body">Chaque société (SCI) possède son propre espace Pennylane. Assurez-vous d'être connecté au bon espace avant de générer le token.</div>
+  </div>
+
+  <div class="steps">
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">Accéder à Pennylane</div>
+        <div class="step-desc">Rendez-vous sur <strong>app.pennylane.com</strong> et connectez-vous avec votre compte.</div>
+        <div class="step-tip">💡 Assurez-vous d'être dans le bon espace de travail (la bonne société).</div>
+        <div class="screenshot-placeholder">
+          <div class="icon">🖼️</div>
+          <div class="label">Capture d'écran — étape 1</div>
+          <div class="sub">Page de connexion Pennylane</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <div class="step-title">Ouvrir les Paramètres</div>
+        <div class="step-desc">Dans la barre de navigation à gauche, cliquez sur l'icône <strong>⚙️ Paramètres</strong> (en bas à gauche de l'écran).</div>
+        <div class="screenshot-placeholder">
+          <div class="icon">🖼️</div>
+          <div class="label">Capture d'écran — étape 2</div>
+          <div class="sub">Navigation Pennylane avec icône Paramètres</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <div class="step-title">Aller dans la section API</div>
+        <div class="step-desc">Dans le menu Paramètres, cherchez et cliquez sur l'onglet <strong>« API »</strong> ou <strong>« Intégrations »</strong>.</div>
+        <div class="step-tip">💡 Cette section est réservée aux administrateurs du compte Pennylane.</div>
+        <div class="screenshot-placeholder">
+          <div class="icon">🖼️</div>
+          <div class="label">Capture d'écran — étape 3</div>
+          <div class="sub">Menu Paramètres → API</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <div class="step-title">Créer une nouvelle clé API</div>
+        <div class="step-desc">Cliquez sur <strong>« Créer une clé API »</strong>. Donnez-lui un nom explicite, par exemple : <em>PropManager</em>.</div>
+        <div class="screenshot-placeholder">
+          <div class="icon">🖼️</div>
+          <div class="label">Capture d'écran — étape 4</div>
+          <div class="sub">Bouton "Créer une clé API"</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <div class="step-title">Sélectionner les permissions</div>
+        <div class="step-desc">Cochez uniquement la permission <strong>« transactions:read »</strong>.</div>
+        <div class="step-tip">💡 Inutile de donner d'autres droits — l'app n'a besoin que de lire vos transactions.</div>
+        <div class="screenshot-placeholder">
+          <div class="icon">🖼️</div>
+          <div class="label">Capture d'écran — étape 5</div>
+          <div class="sub">Choix des permissions / scopes</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-content">
+        <div class="step-title">Copier le token</div>
+        <div class="step-desc">Pennylane affiche le token <strong>une seule fois</strong>. Copiez-le immédiatement.</div>
+        <div class="step-tip">⚠️ Si vous fermez la fenêtre sans le copier, vous devrez en générer un nouveau.</div>
+        <div class="screenshot-placeholder">
+          <div class="icon">🖼️</div>
+          <div class="label">Capture d'écran — étape 6</div>
+          <div class="sub">Token généré à copier</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">7</div>
+      <div class="step-content">
+        <div class="step-title">Coller dans l'app</div>
+        <div class="step-desc">Dans PropManager, sélectionnez votre SCI, collez le token et cliquez sur <strong>« Connecter Pennylane »</strong>.</div>
+        <div class="screenshot-placeholder">
+          <div class="icon">🖼️</div>
+          <div class="label">Capture d'écran — étape 7</div>
+          <div class="sub">Champ token dans PropManager</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="help-box">
+      <div class="title">🆘 En cas de problème</div>
+      <ul>
+        <li>• <strong>Token invalide</strong> : vérifiez que vous êtes dans le bon workspace Pennylane</li>
+        <li>• <strong>Pas de transactions</strong> : vérifiez que le compte bancaire est bien connecté dans Pennylane</li>
+        <li>• <strong>Erreur de permission</strong> : régénérez le token avec le scope <code>transactions:read</code></li>
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="panel-footer">
+    <button>J'ai compris — retour à la connexion</button>
+  </div>
+</div>
+
+</body>
+</html>

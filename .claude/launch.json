@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Backend (Express API)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/cheikhmbeguere/Projects/property-management/backend", "run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "Frontend (Vite + React)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/cheikhmbeguere/Projects/property-management/frontend", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "Portal (Portail Locataire)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/cheikhmbeguere/Projects/property-management/frontend-portal", "run", "dev"],
+      "port": 5175
+    }
+  ]
+}

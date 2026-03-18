@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gold-dark:   #978A47;
+  --gold-mid:    #BCAA58;
+  --gold-light:  #E8DFC0;
+  --gold-pale:   #F5F0DC;
+  --black:       #1a1a1a;
+  --gray-soft:   #6b7280;
+  --border:      #e5e1d5;
+  --bg:          #faf9f7;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg);
+  color: var(--black);
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #f1efe9; }
+::-webkit-scrollbar-thumb { background: var(--gold-mid); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold-dark); }
+
+/* Masquer la scrollbar tout en gardant le scroll fonctionnel (nav mobile) */
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+@layer components {
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center px-4 py-2 text-sm font-semibold text-white rounded-lg transition-all duration-150 gap-1.5;
+    background-color: var(--black);
+  }
+  .btn-primary:hover { background-color: #333; }
+
+  .btn-gold {
+    @apply inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-150 gap-1.5;
+    background-color: var(--gold-dark);
+    color: white;
+  }
+  .btn-gold:hover { background-color: #7a6f39; }
+
+  .btn-secondary {
+    @apply inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-150 gap-1.5 bg-white;
+    border-color: var(--border);
+    color: var(--gray-soft);
+  }
+  .btn-secondary:hover { background-color: var(--gold-pale); border-color: var(--gold-light); }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-2xl border;
+    border-color: var(--border);
+  }
+
+  /* KPI metric cards */
+  .metric-card-1 { background-color: var(--gold-pale);  border-color: var(--gold-light); }
+  .metric-card-2 { background-color: #f0ece0;           border-color: #ddd5b8; }
+  .metric-card-3 { background-color: var(--black);      border-color: var(--black); }
+  .metric-card-4 { background-color: white;             border-color: var(--border); }
+
+  .metric-value-1 { color: var(--gold-dark); }
+  .metric-value-2 { color: var(--gold-mid); }
+  .metric-value-3 { color: white; }
+  .metric-value-4 { color: var(--black); }
+
+  .metric-label-1 { color: #a09550; }
+  .metric-label-2 { color: #9a8b45; }
+  .metric-label-3 { color: var(--gold-light); }
+  .metric-label-4 { color: var(--gray-soft); }
+
+  .metric-icon-1 { background-color: var(--gold-light); color: var(--gold-dark); }
+  .metric-icon-2 { background-color: #ddd5b8;           color: #7a6f39; }
+  .metric-icon-3 { background-color: rgba(255,255,255,0.12); color: var(--gold-light); }
+  .metric-icon-4 { background-color: var(--gold-pale);  color: var(--gold-dark); }
+
+  /* Badges */
+  .badge-actif   { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; background-color: #e8f5e9; color: #2e7d32; }
+  .badge-vacant  { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; background-color: var(--gold-pale); color: var(--gold-dark); }
+  .badge-termine { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; background-color: #f1f0ec; color: #6b7280; }
+
+  /* Tables */
+  .table-row-hover { @apply transition-colors duration-100; }
+  .table-row-hover:hover { background-color: var(--gold-pale); }
+
+  /* Inputs */
+  .input-field {
+    @apply block w-full px-3 py-2 text-sm border rounded-lg shadow-sm transition-all duration-150 bg-white;
+    border-color: var(--border);
+    color: var(--black);
+  }
+  .input-field:focus {
+    @apply outline-none;
+    border-color: var(--gold-mid);
+    box-shadow: 0 0 0 2px rgba(188, 170, 88, 0.25);
+  }
+  .input-field::placeholder { color: #b0a888; }
+
+  /* Tabs */
+  .tab-active   { @apply font-semibold text-sm; color: var(--black); border-bottom: 2px solid var(--gold-dark); }
+  .tab-inactive { @apply font-medium text-sm border-b-2 border-transparent; color: var(--gray-soft); }
+  .tab-inactive:hover { color: var(--gold-dark); border-color: var(--gold-light); }
+}
