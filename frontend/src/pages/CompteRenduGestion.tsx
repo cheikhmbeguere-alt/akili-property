@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { reportsAPI, immeublesAPI } from '../services/api'
+import QuittancesEnAttente from '../components/QuittancesEnAttente'
 
 const MOIS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
                  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
@@ -61,6 +62,16 @@ export default function CompteRenduGestion() {
   const [dateRef, setDateRef]       = useState(today)
   const [immeubleId, setImmeubleId] = useState('')
   const [exporting, setExporting]   = useState(false)
+  const [expanded, setExpanded]     = useState<Set<number>>(new Set())
+
+  const toggleExpanded = (bailId: number) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(bailId)) next.delete(bailId)
+      else next.add(bailId)
+      return next
+    })
+  }
 
   // Paramètres de la requête (calculés selon le mode)
   const queryParams = useMemo(() => {
@@ -356,9 +367,10 @@ export default function CompteRenduGestion() {
 
                 {/* Table */}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm" style={{ minWidth: isDateMode ? '820px' : '700px' }}>
+                  <table className="w-full text-sm" style={{ minWidth: isDateMode ? '860px' : '740px' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#f8fafc' }}>
+                        <th className="px-3 py-2.5 w-8" />
                         <th className="text-left px-4 py-2.5 text-xs font-semibold" style={{ color: '#64748b' }}>Lot</th>
                         <th className="text-left px-4 py-2.5 text-xs font-semibold" style={{ color: '#64748b' }}>Locataire</th>
                         <th className="text-left px-4 py-2.5 text-xs font-semibold" style={{ color: '#64748b' }}>N° Bail</th>
@@ -379,52 +391,78 @@ export default function CompteRenduGestion() {
                     <tbody>
                       {group.baux.map((b: any) => {
                         const isImpaye = b.solde_periode > 0.01
+                        const isOpen   = expanded.has(b.bail_id)
+                        const nbCols   = isDateMode ? 10 : 9
                         return (
-                          <tr key={b.bail_id}
-                            style={{
-                              borderTop: '1px solid #f1f5f9',
-                              backgroundColor: isImpaye ? '#fff5f5' : '#fff',
-                            }}>
-                            <td className="px-4 py-3">
-                              <p className="font-semibold text-xs" style={{ color: '#0f172a' }}>{b.lot_code}</p>
-                              <p className="text-xs" style={{ color: '#94a3b8' }}>{b.lot_name || b.lot_type || ''}</p>
-                            </td>
-                            <td className="px-4 py-3">
-                              <p className="text-xs" style={{ color: '#0f172a' }}>{b.locataire_nom}</p>
-                              <p className="text-xs" style={{ color: '#94a3b8' }}>
-                                {b.locataire_type === 'entreprise' ? 'Entreprise' : 'Particulier'}
-                              </p>
-                            </td>
-                            <td className="px-4 py-3 text-xs" style={{ color: '#64748b' }}>{b.bail_code}</td>
-                            <td className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#0f172a' }}>
-                              {fmt(b.loyer_mensuel)}
-                            </td>
-                            {isDateMode && (
-                              <td className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#64748b' }}>
-                                {b.nb_mois ?? '—'} mois
+                          <>
+                            <tr key={b.bail_id}
+                              style={{
+                                borderTop: '1px solid #f1f5f9',
+                                backgroundColor: isOpen ? '#faf9f7' : isImpaye ? '#fff5f5' : '#fff',
+                              }}>
+                              {/* Bouton expand (seulement si impayé) */}
+                              <td className="px-3 py-3">
+                                {isImpaye && (
+                                  <button
+                                    onClick={() => toggleExpanded(b.bail_id)}
+                                    className="flex items-center justify-center w-6 h-6 rounded-full border transition-all"
+                                    style={{
+                                      borderColor:     isOpen ? '#978A47' : '#e2e8f0',
+                                      backgroundColor: isOpen ? '#978A47' : '#fff',
+                                      color:           isOpen ? '#fff'    : '#6b7280',
+                                    }}
+                                    title={isOpen ? 'Masquer les factures' : 'Voir les factures en attente'}
+                                  >
+                                    <span style={{ fontSize: '10px', lineHeight: 1 }}>
+                                      {isOpen ? '▼' : '▶'}
+                                    </span>
+                                  </button>
+                                )}
                               </td>
-                            )}
-                            <td className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#2563eb' }}>
-                              {fmt(b.loyer_attendu)}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className="text-xs font-semibold" style={{ color: '#16a34a' }}>
-                                {fmt(b.encaisse_periode)}
-                              </span>
-                              {b.nb_encaissements > 0 && (
+                              <td className="px-4 py-3">
+                                <p className="font-semibold text-xs" style={{ color: '#0f172a' }}>{b.lot_code}</p>
+                                <p className="text-xs" style={{ color: '#94a3b8' }}>{b.lot_name || b.lot_type || ''}</p>
+                              </td>
+                              <td className="px-4 py-3">
+                                <p className="text-xs" style={{ color: '#0f172a' }}>{b.locataire_nom}</p>
                                 <p className="text-xs" style={{ color: '#94a3b8' }}>
-                                  {b.nb_encaissements} mvt{b.nb_encaissements !== 1 ? 's' : ''}
+                                  {b.locataire_type === 'entreprise' ? 'Entreprise' : 'Particulier'}
                                 </p>
+                              </td>
+                              <td className="px-4 py-3 text-xs" style={{ color: '#64748b' }}>{b.bail_code}</td>
+                              <td className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#0f172a' }}>
+                                {fmt(b.loyer_mensuel)}
+                              </td>
+                              {isDateMode && (
+                                <td className="px-4 py-3 text-right text-xs font-medium" style={{ color: '#64748b' }}>
+                                  {b.nb_mois ?? '—'} mois
+                                </td>
                               )}
-                            </td>
-                            <td className="px-4 py-3 text-right text-xs font-semibold"
-                              style={{ color: isImpaye ? '#dc2626' : '#16a34a' }}>
-                              {isImpaye ? `+${fmt(b.solde_periode)}` : fmt(b.solde_periode)}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <StatutBadge impaye={isImpaye} />
-                            </td>
-                          </tr>
+                              <td className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#2563eb' }}>
+                                {fmt(b.loyer_attendu)}
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span className="text-xs font-semibold" style={{ color: '#16a34a' }}>
+                                  {fmt(b.encaisse_periode)}
+                                </span>
+                                {b.nb_encaissements > 0 && (
+                                  <p className="text-xs" style={{ color: '#94a3b8' }}>
+                                    {b.nb_encaissements} mvt{b.nb_encaissements !== 1 ? 's' : ''}
+                                  </p>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right text-xs font-semibold"
+                                style={{ color: isImpaye ? '#dc2626' : '#16a34a' }}>
+                                {isImpaye ? `+${fmt(b.solde_periode)}` : fmt(b.solde_periode)}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <StatutBadge impaye={isImpaye} />
+                              </td>
+                            </tr>
+
+                            {/* Ligne dépliable : factures en attente */}
+                            {isOpen && <QuittancesEnAttente bailId={b.bail_id} colSpan={nbCols} />}
+                          </>
                         )
                       })}
                     </tbody>
@@ -432,6 +470,7 @@ export default function CompteRenduGestion() {
                     {/* Sous-total immeuble */}
                     <tfoot>
                       <tr style={{ backgroundColor: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
+                        <td />
                         <td colSpan={isDateMode ? 4 : 3}
                           className="px-4 py-2.5 text-xs font-bold"
                           style={{ color: '#374151' }}>

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { impayesAPI, notificationsAPI } from '../services/api'
 import Protect from '../components/Protect'
+import QuittancesEnAttente from '../components/QuittancesEnAttente'
 
 type Filter = 'tous' | 'j7' | 'j14' | 'j15plus'
 type RelanceType = 'relance1' | 'relance2' | 'mise_en_demeure'
@@ -33,7 +34,6 @@ function RelanceModal({ bail, onClose, onSuccess }: RelanceModalProps) {
   const [loading, setLoading]     = useState(false)
   const [sendEmail, setSendEmail] = useState(false)
 
-  // Map des types entre les deux APIs
   const typeMap: Record<RelanceType, string> = {
     relance1:        'premier_rappel',
     relance2:        'deuxieme_rappel',
@@ -44,9 +44,7 @@ function RelanceModal({ bail, onClose, onSuccess }: RelanceModalProps) {
     e.preventDefault()
     setLoading(true)
     try {
-      // 1. Enregistrement de la relance dans la DB
       await impayesAPI.createRelance(bail.bail_id, { type, montant_du: bail.solde, notes })
-      // 2. Envoi email si demandé
       if (sendEmail) {
         try {
           await notificationsAPI.envoyerRelance(bail.bail_id, typeMap[type])
@@ -108,7 +106,6 @@ function RelanceModal({ bail, onClose, onSuccess }: RelanceModalProps) {
               style={{ borderColor: '#e2e8f0', color: '#1a1a1a', resize: 'vertical' }}
             />
           </div>
-          {/* Option email */}
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input
               type="checkbox"
@@ -141,8 +138,9 @@ function RelanceModal({ bail, onClose, onSuccess }: RelanceModalProps) {
 }
 
 export default function Impayes() {
-  const [filter, setFilter] = useState<Filter>('tous')
+  const [filter, setFilter]           = useState<Filter>('tous')
   const [relanceBail, setRelanceBail] = useState<any>(null)
+  const [expanded, setExpanded]       = useState<Set<number>>(new Set())
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -166,6 +164,15 @@ export default function Impayes() {
     if (filter === 'j15plus') return solde > 0 && jours >= 15
     return true
   })
+
+  const toggleExpanded = (bailId: number) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(bailId)) next.delete(bailId)
+      else next.add(bailId)
+      return next
+    })
+  }
 
   const filters: { id: Filter; label: string }[] = [
     { id: 'tous',    label: 'Tous' },
@@ -256,6 +263,7 @@ export default function Impayes() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ backgroundColor: '#faf9f7', borderBottom: '1px solid #ede9e6' }}>
+                  <th className="px-4 py-3 w-8" />
                   {['Locataire', 'Lot', 'Loyer mensuel', 'Total dû', 'Payé', 'Solde', 'Retard', 'Dernière relance', 'Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap"
                       style={{ color: '#9ca3af' }}>{h}</th>
@@ -264,57 +272,83 @@ export default function Impayes() {
               </thead>
               <tbody>
                 {filtered.map((b: any) => {
-                  const solde = parseFloat(b.solde) || 0
-                  const jours = parseInt(b.jours_retard) || 0
+                  const solde     = parseFloat(b.solde) || 0
+                  const jours     = parseInt(b.jours_retard) || 0
+                  const isOpen    = expanded.has(b.bail_id)
+
                   return (
-                    <tr key={b.bail_id} className="table-row-hover border-b" style={{ borderColor: '#f5f3f0' }}>
-                      <td className="px-4 py-3 font-medium" style={{ color: '#1a1a1a' }}>
-                        {b.locataire_nom || '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs font-medium" style={{ color: '#978A47' }}>
-                          {b.lot_code}
-                        </span>
-                        {b.lot_name && (
-                          <span className="text-xs ml-1" style={{ color: '#9ca3af' }}>· {b.lot_name}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3" style={{ color: '#6b7280' }}>
-                        {formatEur(b.loyer_mensuel)}
-                      </td>
-                      <td className="px-4 py-3 font-medium" style={{ color: '#1a1a1a' }}>
-                        {formatEur(b.total_du)}
-                      </td>
-                      <td className="px-4 py-3" style={{ color: '#16a34a' }}>
-                        {formatEur(b.total_paye)}
-                      </td>
-                      <td className="px-4 py-3 font-bold"
-                        style={{ color: solde > 0 ? '#dc2626' : '#16a34a' }}>
-                        {solde > 0 ? `- ${formatEur(solde)}` : '✅'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <RetardBadge jours={jours} />
-                      </td>
-                      <td className="px-4 py-3 text-xs" style={{ color: '#9ca3af' }}>
-                        {b.derniere_relance
-                          ? RELANCE_LABELS[b.derniere_relance as RelanceType] || b.derniere_relance
-                          : <span>—</span>
-                        }
-                      </td>
-                      <td className="px-4 py-3">
-                        {solde > 0 && (
-                          <Protect minRole="editor">
+                    <>
+                      <tr key={b.bail_id} className="border-b" style={{ borderColor: isOpen ? '#e2e8f0' : '#f5f3f0', backgroundColor: isOpen ? '#faf9f7' : undefined }}>
+                        {/* Bouton expand */}
+                        <td className="px-3 py-3">
+                          {solde > 0 && (
                             <button
-                              onClick={() => setRelanceBail(b)}
-                              className="text-xs font-semibold px-3 py-1 rounded-lg border transition-colors"
-                              style={{ color: '#1a1a1a', borderColor: '#e2e8f0' }}
+                              onClick={() => toggleExpanded(b.bail_id)}
+                              className="flex items-center justify-center w-6 h-6 rounded-full border transition-all"
+                              style={{
+                                borderColor: isOpen ? '#978A47' : '#e2e8f0',
+                                backgroundColor: isOpen ? '#978A47' : '#fff',
+                                color: isOpen ? '#fff' : '#6b7280',
+                              }}
+                              title={isOpen ? 'Masquer les factures' : 'Voir les factures en attente'}
                             >
-                              Relancer
+                              <span style={{ fontSize: '10px', lineHeight: 1 }}>
+                                {isOpen ? '▼' : '▶'}
+                              </span>
                             </button>
-                          </Protect>
-                        )}
-                      </td>
-                    </tr>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-medium" style={{ color: '#1a1a1a' }}>
+                          {b.locataire_nom || '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs font-medium" style={{ color: '#978A47' }}>
+                            {b.lot_code}
+                          </span>
+                          {b.lot_name && (
+                            <span className="text-xs ml-1" style={{ color: '#9ca3af' }}>· {b.lot_name}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3" style={{ color: '#6b7280' }}>
+                          {formatEur(b.loyer_mensuel)}
+                        </td>
+                        <td className="px-4 py-3 font-medium" style={{ color: '#1a1a1a' }}>
+                          {formatEur(b.total_du)}
+                        </td>
+                        <td className="px-4 py-3" style={{ color: '#16a34a' }}>
+                          {formatEur(b.total_paye)}
+                        </td>
+                        <td className="px-4 py-3 font-bold"
+                          style={{ color: solde > 0 ? '#dc2626' : '#16a34a' }}>
+                          {solde > 0 ? `- ${formatEur(solde)}` : '✅'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <RetardBadge jours={jours} />
+                        </td>
+                        <td className="px-4 py-3 text-xs" style={{ color: '#9ca3af' }}>
+                          {b.derniere_relance
+                            ? RELANCE_LABELS[b.derniere_relance as RelanceType] || b.derniere_relance
+                            : <span>—</span>
+                          }
+                        </td>
+                        <td className="px-4 py-3">
+                          {solde > 0 && (
+                            <Protect minRole="editor">
+                              <button
+                                onClick={() => setRelanceBail(b)}
+                                className="text-xs font-semibold px-3 py-1 rounded-lg border transition-colors"
+                                style={{ color: '#1a1a1a', borderColor: '#e2e8f0' }}
+                              >
+                                Relancer
+                              </button>
+                            </Protect>
+                          )}
+                        </td>
+                      </tr>
+
+                      {/* Ligne dépliable : factures en attente */}
+                      {isOpen && <QuittancesEnAttente bailId={b.bail_id} />}
+                    </>
                   )
                 })}
               </tbody>
