@@ -18,6 +18,6 @@ router.get('/:id/pdf',     getPDF);
 
 router.post('/generate',   requireRole('editor', 'admin'), generateQuittances);
 router.post('/:id/paid',   requireRole('editor', 'admin'), markPaid);
-router.delete('/:id',      requireRole('admin'),           cancelQuittance);
+router.delete('/:id',      requireRole('editor', 'admin'), cancelQuittance);
 
 export default router;

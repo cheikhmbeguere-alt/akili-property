@@ -131,93 +131,110 @@ export const getQuittanceById = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const generateQuittances = async (req: AuthRequest, res: Response) => {
-  try {
-    const { mois, annee, bail_ids } = req.body;
+// Génère les quittances pour un mois donné (logique interne réutilisable)
+async function generateForMonth(
+  y: number, m: number, bail_ids: number[] | undefined, userId: number,
+  created: any[], skipped: any[]
+) {
+  const periodStart = dateStr(y, m, 1);
+  const periodEnd   = dateStr(y, m, joursInMonth(m, y));
+  const dueDate     = dateStr(y, m, 5);
 
-    if (!mois || !annee) return res.status(400).json({ error: 'mois et annee sont requis' });
+  let bauxQuery = `
+    SELECT b.*, loc.email as locataire_email
+    FROM baux b
+    JOIN locataires loc ON b.locataire_id = loc.id
+    WHERE b.status = 'actif'
+      AND b.start_date <= $1
+      AND (b.end_date IS NULL OR b.end_date >= $2)
+  `;
+  const bauxParams: any[] = [periodEnd, periodStart];
+  if (bail_ids && bail_ids.length > 0) {
+    bauxQuery += ` AND b.id = ANY($3)`;
+    bauxParams.push(bail_ids);
+  }
 
-    const m = parseInt(mois);
-    const y = parseInt(annee);
-    // ⚠ On construit les dates directement en YYYY-MM-DD pour éviter tout décalage UTC
-    const periodStart = dateStr(y, m, 1);
-    const periodEnd   = dateStr(y, m, joursInMonth(m, y));
-    const dueDate     = dateStr(y, m, 5); // J+5 du mois
+  const bauxResult = await pool.query(bauxQuery, bauxParams);
 
-    // Récupérer les baux actifs (ou filtrés)
-    let bauxQuery = `
-      SELECT b.*, loc.email as locataire_email
-      FROM baux b
-      JOIN locataires loc ON b.locataire_id = loc.id
-      WHERE b.status = 'actif'
-        AND b.start_date <= $1
-        AND (b.end_date IS NULL OR b.end_date >= $2)
-    `;
-    const bauxParams: any[] = [periodEnd, periodStart];
-
-    if (bail_ids && Array.isArray(bail_ids) && bail_ids.length > 0) {
-      bauxQuery += ` AND b.id = ANY($3)`;
-      bauxParams.push(bail_ids);
+  for (const bail of bauxResult.rows) {
+    const exists = await pool.query(
+      `SELECT id FROM quittances WHERE bail_id = $1 AND period_start = $2 AND status != 'annule'`,
+      [bail.id, periodStart]
+    );
+    if (exists.rows.length > 0) {
+      skipped.push({ bail_id: bail.id, period: periodStart, reason: 'déjà générée' });
+      continue;
     }
 
-    const bauxResult = await pool.query(bauxQuery, bauxParams);
+    const lastIndexation = await pool.query(
+      `SELECT nouveau_loyer_ht FROM indexations
+       WHERE bail_id = $1 AND indexation_date <= $2
+       ORDER BY indexation_date DESC LIMIT 1`,
+      [bail.id, periodEnd]
+    );
+    const bailEffectif = { ...bail };
+    if (lastIndexation.rows.length > 0) {
+      bailEffectif.loyer_ht = lastIndexation.rows[0].nouveau_loyer_ht;
+    }
+
+    const totalJours = joursInMonth(m, y);
+    let jours = totalJours;
+    let isProrata = false;
+    const startDateStr = toLocalDateStr(bail.start_date);
+    if (startDateStr > periodStart && startDateStr <= periodEnd) {
+      const startDay = parseInt(startDateStr.split('-')[2], 10);
+      jours = totalJours - startDay + 1;
+      isProrata = true;
+    }
+
+    const { loyerHT, chargesHT, tvaLoyer, tvaCharges, totalTTC } = calcMontants(bailEffectif, jours, totalJours);
+    const typeDoc = detectTypeDocument(bail.type_bail, bail.tva_applicable);
+
+    const q = await pool.query(
+      `INSERT INTO quittances (
+        bail_id, code, type_document,
+        period_start, period_end, due_date, emission_date,
+        loyer_ht, charges_ht, tva_loyer, tva_charges,
+        tva_rate, tva_on_charges, tva_amount, total_ttc,
+        is_prorata, prorata_jours, prorata_total,
+        status, created_by
+      ) VALUES ($1,$2,$3,$4,$5,$6,CURRENT_DATE,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'emis',$18)
+      RETURNING id`,
+      [
+        bail.id, 'TEMP', typeDoc,
+        periodStart, periodEnd, dueDate,
+        loyerHT, chargesHT, tvaLoyer, tvaCharges,
+        parseFloat(bail.tva_rate) || 0, bail.tva_on_charges || false,
+        tvaLoyer + tvaCharges, totalTTC,
+        isProrata, jours, totalJours,
+        userId
+      ]
+    );
+
+    const newId = q.rows[0].id;
+    const numero = buildNumero(typeDoc, newId, m, y);
+    await pool.query(`UPDATE quittances SET code = $1 WHERE id = $2`, [numero, newId]);
+    created.push({ id: newId, bail_id: bail.id, numero, type_document: typeDoc, total_ttc: totalTTC });
+  }
+}
+
+export const generateQuittances = async (req: AuthRequest, res: Response) => {
+  try {
+    const { mois, annee, bail_ids, toute_annee } = req.body;
+
+    if (!annee) return res.status(400).json({ error: 'annee est requis' });
+    if (!toute_annee && !mois) return res.status(400).json({ error: 'mois est requis (ou toute_annee: true)' });
+
+    const y = parseInt(annee);
     const created: any[] = [];
     const skipped: any[] = [];
 
-    for (const bail of bauxResult.rows) {
-      // Vérifier si déjà généré
-      const exists = await pool.query(
-        `SELECT id FROM quittances WHERE bail_id = $1 AND period_start = $2 AND status != 'annule'`,
-        [bail.id, periodStart]
-      );
-      if (exists.rows.length > 0) {
-        skipped.push({ bail_id: bail.id, reason: 'déjà générée' });
-        continue;
+    if (toute_annee) {
+      for (let m = 1; m <= 12; m++) {
+        await generateForMonth(y, m, bail_ids, req.user!.id, created, skipped);
       }
-
-      // Calculer prorata si démarrage en cours de mois
-      const totalJours = joursInMonth(m, y);
-      let jours = totalJours;
-      let isProrata = false;
-
-      // Convertir start_date en YYYY-MM-DD local (même format que periodStart/periodEnd)
-      const startDateStr = toLocalDateStr(bail.start_date);
-      if (startDateStr > periodStart && startDateStr <= periodEnd) {
-        const startDay = parseInt(startDateStr.split('-')[2], 10);
-        jours = totalJours - startDay + 1;
-        isProrata = true;
-      }
-
-      const { loyerHT, chargesHT, tvaLoyer, tvaCharges, totalTTC } = calcMontants(bail, jours, totalJours);
-      const typeDoc = detectTypeDocument(bail.type_bail, bail.tva_applicable);
-
-      // Générer un code de référence temporaire (mis à jour après INSERT avec l'id réel)
-      const q = await pool.query(
-        `INSERT INTO quittances (
-          bail_id, code, type_document,
-          period_start, period_end, due_date, emission_date,
-          loyer_ht, charges_ht, tva_loyer, tva_charges,
-          tva_rate, tva_on_charges, tva_amount, total_ttc,
-          is_prorata, prorata_jours, prorata_total,
-          status, created_by
-        ) VALUES ($1,$2,$3,$4,$5,$6,CURRENT_DATE,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'emis',$18)
-        RETURNING id`,
-        [
-          bail.id, 'TEMP', typeDoc,
-          periodStart, periodEnd, dueDate,
-          loyerHT, chargesHT, tvaLoyer, tvaCharges,
-          parseFloat(bail.tva_rate) || 0, bail.tva_on_charges || false,
-          tvaLoyer + tvaCharges, totalTTC,
-          isProrata, jours, totalJours,
-          req.user!.id
-        ]
-      );
-
-      const newId = q.rows[0].id;
-      const numero = buildNumero(typeDoc, newId, m, y);
-      await pool.query(`UPDATE quittances SET code = $1 WHERE id = $2`, [numero, newId]);
-
-      created.push({ id: newId, bail_id: bail.id, numero, type_document: typeDoc, total_ttc: totalTTC });
+    } else {
+      await generateForMonth(y, parseInt(mois), bail_ids, req.user!.id, created, skipped);
     }
 
     res.status(201).json({
@@ -363,7 +380,8 @@ export const getPDF = async (req: AuthRequest, res: Response) => {
     });
 
     // Lignes
-    const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) + ' €';
+    // toLocaleString('fr-FR') utilise des espaces insécables (U+202F) que PDFKit rend en '/'
+    const fmt = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2 }).replace(/[\u00a0\u202f]/g, ' ') + '\u00a0\u20ac';
     const tvaRate = parseFloat(q.tva_rate) || 0;
 
     const rows: [string, number, number, number][] = [

@@ -68,12 +68,21 @@ export const getBauxAIndexer = async (_req: AuthRequest, res: Response) => {
       JOIN immeubles im     ON lo.immeuble_id  = im.id
       JOIN locataires loc   ON b.locataire_id  = loc.id
       JOIN indices i        ON b.indice_id     = i.id
-      -- Dernier indice publié
+      -- Dernier indice publié pour le trimestre de référence du bail
       LEFT JOIN LATERAL (
         SELECT value, year, quarter
         FROM indice_values
         WHERE indice_id = b.indice_id
-        ORDER BY year DESC, quarter DESC
+          AND quarter = COALESCE(
+            b.indice_base_quarter,
+            CASE
+              WHEN b.indexation_date_month <= 3 THEN 4
+              WHEN b.indexation_date_month <= 6 THEN 1
+              WHEN b.indexation_date_month <= 9 THEN 2
+              ELSE 3
+            END
+          )
+        ORDER BY year DESC
         LIMIT 1
       ) lv ON true
       -- Dernière indexation effectuée
@@ -97,7 +106,16 @@ export const getBauxAIndexer = async (_req: AuthRequest, res: Response) => {
         ) <= CURRENT_DATE
         AND (
           b.last_indexation_date IS NULL
-          OR EXTRACT(YEAR FROM b.last_indexation_date) < EXTRACT(YEAR FROM CURRENT_DATE)
+          OR (
+            -- Annuelle : pas encore indexé cette année
+            COALESCE(b.indexation_frequency, 'annuelle') = 'annuelle'
+            AND EXTRACT(YEAR FROM b.last_indexation_date) < EXTRACT(YEAR FROM CURRENT_DATE)
+          )
+          OR (
+            -- Triennale : 3 ans écoulés depuis la dernière indexation (ou jamais indexé)
+            COALESCE(b.indexation_frequency, 'annuelle') = 'triennale'
+            AND EXTRACT(YEAR FROM b.last_indexation_date) + 3 <= EXTRACT(YEAR FROM CURRENT_DATE)
+          )
         )
       ORDER BY date_prevue ASC
     `);
@@ -252,6 +270,7 @@ export const getRattrapage = async (req: AuthRequest, res: Response) => {
              b.indice_id, b.indice_base_value, b.indice_base_year, b.indice_base_quarter,
              b.indexation_date_month, b.indexation_date_day,
              b.solde_reprise_date, b.loyer_reprise,
+             COALESCE(b.indexation_frequency, 'annuelle') AS indexation_frequency,
              i.code AS indice_code
       FROM baux b
       JOIN indices i ON i.id = b.indice_id
@@ -282,6 +301,8 @@ export const getRattrapage = async (req: AuthRequest, res: Response) => {
     }
 
     const anniversaryMonth = parseInt(bail.indexation_date_month) || 1;
+    const isTriennale = bail.indexation_frequency === 'triennale';
+    const step = isTriennale ? 3 : 1;
 
     // Trimestre de référence : utiliser indice_base_quarter du bail (explicitement saisi)
     // Fallback : dériver du mois d'anniversaire si non défini
@@ -298,7 +319,7 @@ export const getRattrapage = async (req: AuthRequest, res: Response) => {
     const baseValue = parseFloat(bail.indice_base_value);
     const currentYear = new Date().getFullYear();
 
-    // Construire le tableau an par an
+    // Construire le tableau période par période (annuelle : step=1, triennale : step=3)
     const rows: any[] = [];
     // Loyer de base : si loyer_reprise saisi ET aucune indexation déjà enregistrée,
     // utiliser ce loyer (qui reflète les indexations appliquées avant la reprise)
@@ -306,16 +327,17 @@ export const getRattrapage = async (req: AuthRequest, res: Response) => {
       ? parseFloat(bail.loyer_reprise)
       : parseFloat(bail.loyer_ht);
 
-    for (let year = startYear + 1; year <= currentYear; year++) {
+    for (let year = startYear + step; year <= currentYear; year += step) {
       const anniversaryDate = `${year}-${String(anniversaryMonth).padStart(2, '0')}-01`;
 
-      // Chaîne basée sur l'indice_base_year du bail :
-      // Année Y → ancien = baseYear + (Y - startYear - 1), nouveau = baseYear + (Y - startYear)
-      const yearsFromStart = year - startYear;
-      const refYearAncien = baseYear + yearsFromStart - 1;
-      const refYearNouveau = baseYear + yearsFromStart;
+      // Pour la triennale : comparer l'indice de l'année N à l'indice de l'année N-3
+      // Pour l'annuelle  : comparer l'indice de l'année N à l'indice de l'année N-1
+      // Les refYears sont basés sur baseYear pour rester alignés avec l'indice initial
+      const periodsFromStart = Math.round((year - startYear) / step);
+      const refYearAncien = baseYear + (periodsFromStart - 1) * step;
+      const refYearNouveau = baseYear + periodsFromStart * step;
 
-      // Pour la première indexation, l'ancien = indice_base_value du bail (valeur certaine)
+      // Pour la première période, l'ancien = indice_base_value du bail (valeur certaine)
       // Pour les suivantes, récupérer depuis la table indice_values
       const indiceAncien = refYearAncien === baseYear
         ? baseValue
@@ -333,7 +355,7 @@ export const getRattrapage = async (req: AuthRequest, res: Response) => {
 
       const alreadyDone = existingByYear.has(year);
 
-      // Loyer de base = valeur courante accumulée (chaîne depuis la 1ère année)
+      // Loyer de base = valeur courante accumulée (chaîne depuis la 1ère période)
       // Si une indexation a déjà été appliquée pour cette année, on prend sa valeur réelle
       const existingRow = alreadyDone ? existingByYear.get(year) : null;
       const loyerBase = loyerCourant;
@@ -361,7 +383,7 @@ export const getRattrapage = async (req: AuthRequest, res: Response) => {
         can_apply: !alreadyDone && !!indiceAncien && !!indiceNouveau,
       });
 
-      // Mettre à jour le loyer courant pour la prochaine année
+      // Mettre à jour le loyer courant pour la prochaine période
       if (alreadyDone && existingRow) {
         loyerCourant = parseFloat(existingRow.nouveau_loyer_ht);
       } else if (!alreadyDone && nouveauLoyer) {
@@ -378,6 +400,7 @@ export const getRattrapage = async (req: AuthRequest, res: Response) => {
       indice_base_value: baseValue,
       indice_base_year: baseYear,
       ref_quarter: refQuarter,
+      indexation_frequency: bail.indexation_frequency,
       rows,
     });
   } catch (err) {

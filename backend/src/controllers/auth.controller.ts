@@ -4,6 +4,15 @@ import jwt from 'jsonwebtoken';
 import pool from '../config/database';
 import { AuthRequest } from '../middleware/auth.middleware';
 
+const AZURE_TENANT_ID  = process.env.AZURE_TENANT_ID!;
+const AZURE_CLIENT_ID  = process.env.AZURE_CLIENT_ID!;
+const AZURE_CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET!;
+const IS_PROD = process.env.NODE_ENV === 'production';
+const REDIRECT_URI  = IS_PROD
+  ? 'https://akiliproperty.fr/api/auth/callback/azure-ad'
+  : 'http://localhost:3000/api/auth/callback/azure-ad';
+const FRONTEND_URL  = IS_PROD ? 'https://akiliproperty.fr' : 'http://localhost:5173';
+
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -128,6 +137,88 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Change password error:', error);
     res.status(500).json({ error: 'Erreur interne du serveur' });
+  }
+};
+
+export const microsoftAuth = (_req: Request, res: Response) => {
+  const params = new URLSearchParams({
+    client_id:     AZURE_CLIENT_ID,
+    response_type: 'code',
+    redirect_uri:  REDIRECT_URI,
+    scope:         'openid email profile',
+    response_mode: 'query',
+  });
+  res.redirect(`https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/authorize?${params}`);
+};
+
+export const microsoftCallback = async (req: Request, res: Response) => {
+  try {
+    const { code, error } = req.query;
+    if (error || !code) {
+      return res.redirect(`${FRONTEND_URL}/auth-callback?error=microsoft_auth_failed`);
+    }
+
+    // Échange du code contre un token
+    const tokenRes = await fetch(
+      `https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id:     AZURE_CLIENT_ID,
+          client_secret: AZURE_CLIENT_SECRET,
+          code:          code as string,
+          redirect_uri:  REDIRECT_URI,
+          grant_type:    'authorization_code',
+        }),
+      }
+    );
+
+    if (!tokenRes.ok) {
+      console.error('Microsoft token exchange failed:', await tokenRes.text());
+      return res.redirect(`${FRONTEND_URL}/auth-callback?error=token_exchange_failed`);
+    }
+
+    const tokenData = await tokenRes.json() as any;
+
+    // Décoder l'id_token pour obtenir l'email (pas besoin de vérifier la signature côté serveur)
+    const idPayload = JSON.parse(
+      Buffer.from(tokenData.id_token.split('.')[1], 'base64url').toString()
+    );
+    const email = idPayload.email || idPayload.preferred_username;
+
+    if (!email) {
+      return res.redirect(`${FRONTEND_URL}/auth-callback?error=no_email`);
+    }
+
+    // Chercher l'utilisateur en base
+    const userRes = await pool.query(
+      'SELECT id, email, first_name, last_name, role, is_active, tenant_id FROM users WHERE LOWER(email) = LOWER($1)',
+      [email]
+    );
+
+    if (userRes.rows.length === 0 || !userRes.rows[0].is_active) {
+      return res.redirect(`${FRONTEND_URL}/auth-callback?error=unauthorized`);
+    }
+
+    const user = userRes.rows[0];
+
+    // Générer le JWT AKILI
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, role: user.role, tenantId: user.tenant_id },
+      process.env.JWT_SECRET!,
+      { expiresIn: '24h' }
+    );
+
+    await pool.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, ip_address) VALUES ($1, $2, $3, $4)`,
+      [user.id, 'login_microsoft', 'user', req.ip]
+    );
+
+    res.redirect(`${FRONTEND_URL}/auth-callback?token=${token}`);
+  } catch (error) {
+    console.error('Microsoft callback error:', error);
+    res.redirect(`${FRONTEND_URL}/auth-callback?error=server_error`);
   }
 };
 

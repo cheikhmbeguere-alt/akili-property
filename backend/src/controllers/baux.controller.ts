@@ -123,6 +123,7 @@ export const createBail = async (req: AuthRequest, res: Response) => {
       indice_base_quarter,
       indexation_date_month,
       indexation_date_day,
+      indexation_frequency,
       franchise_start_date,
       franchise_end_date,
       quittancement_frequency,
@@ -176,18 +177,18 @@ export const createBail = async (req: AuthRequest, res: Response) => {
         loyer_ht, charges_ht, tva_applicable, tva_rate, tva_on_charges,
         depot_garantie, depot_garantie_received_date,
         indexation_applicable, indice_id, indice_base_value, indice_base_year, indice_base_quarter,
-        indexation_date_month, indexation_date_day,
+        indexation_date_month, indexation_date_day, indexation_frequency,
         franchise_start_date, franchise_end_date, quittancement_frequency,
         type_bail, status, notes, solde_reprise, solde_reprise_date, loyer_reprise
       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
        RETURNING *`,
       [
         code, lot_id, locataire_id, start_date, end_date, notice_period_months,
         loyer_ht, charges_ht || 0, tva_applicable !== false, tva_rate || 20.00, tva_on_charges || false,
         depot_garantie, depot_garantie_received_date,
         indexation_applicable !== false, indice_id, indice_base_value, indice_base_year, indice_base_quarter,
-        indexation_date_month, indexation_date_day,
+        indexation_date_month, indexation_date_day, indexation_frequency || 'annuelle',
         franchise_start_date, franchise_end_date, quittancement_frequency || 'mensuel',
         type_bail || 'commercial', 'actif', notes, solde_reprise || 0,
         solde_reprise_date || null, loyer_reprise || null
@@ -218,6 +219,7 @@ export const updateBail = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const {
+      start_date,
       loyer_ht,
       charges_ht,
       tva_applicable,
@@ -234,6 +236,7 @@ export const updateBail = async (req: AuthRequest, res: Response) => {
       indice_base_quarter,
       indexation_date_month,
       indexation_date_day,
+      indexation_frequency,
       franchise_start_date,
       franchise_end_date,
       quittancement_frequency,
@@ -247,39 +250,41 @@ export const updateBail = async (req: AuthRequest, res: Response) => {
 
     const result = await pool.query(
       `UPDATE baux
-       SET loyer_ht = COALESCE($1, loyer_ht),
-           charges_ht = COALESCE($2, charges_ht),
-           tva_applicable = COALESCE($3, tva_applicable),
-           tva_rate = COALESCE($4, tva_rate),
-           tva_on_charges = COALESCE($5, tva_on_charges),
-           end_date = COALESCE($6, end_date),
-           notice_period_months = COALESCE($7, notice_period_months),
-           depot_garantie = COALESCE($8, depot_garantie),
-           depot_garantie_received_date = COALESCE($9, depot_garantie_received_date),
-           indexation_applicable = COALESCE($10, indexation_applicable),
-           indice_id = COALESCE($11, indice_id),
-           indice_base_value = COALESCE($12, indice_base_value),
-           indice_base_year = COALESCE($13, indice_base_year),
-           indice_base_quarter = COALESCE($14, indice_base_quarter),
-           indexation_date_month = COALESCE($15, indexation_date_month),
-           indexation_date_day = COALESCE($16, indexation_date_day),
-           franchise_start_date = COALESCE($17, franchise_start_date),
-           franchise_end_date = COALESCE($18, franchise_end_date),
-           quittancement_frequency = COALESCE($19, quittancement_frequency),
-           type_bail = COALESCE($20::type_bail_enum, type_bail),
-           status = COALESCE($21, status),
-           notes = COALESCE($22, notes),
-           solde_reprise = COALESCE($23, solde_reprise),
-           solde_reprise_date = $24,
-           loyer_reprise = $25
-       WHERE id = $26
+       SET start_date = COALESCE($1, start_date),
+           loyer_ht = COALESCE($2, loyer_ht),
+           charges_ht = COALESCE($3, charges_ht),
+           tva_applicable = COALESCE($4, tva_applicable),
+           tva_rate = COALESCE($5, tva_rate),
+           tva_on_charges = COALESCE($6, tva_on_charges),
+           end_date = COALESCE($7, end_date),
+           notice_period_months = COALESCE($8, notice_period_months),
+           depot_garantie = COALESCE($9, depot_garantie),
+           depot_garantie_received_date = COALESCE($10, depot_garantie_received_date),
+           indexation_applicable = COALESCE($11, indexation_applicable),
+           indice_id = COALESCE($12, indice_id),
+           indice_base_value = COALESCE($13, indice_base_value),
+           indice_base_year = COALESCE($14, indice_base_year),
+           indice_base_quarter = COALESCE($15, indice_base_quarter),
+           indexation_date_month = COALESCE($16, indexation_date_month),
+           indexation_date_day = COALESCE($17, indexation_date_day),
+           indexation_frequency = COALESCE($18, indexation_frequency),
+           franchise_start_date = COALESCE($19, franchise_start_date),
+           franchise_end_date = COALESCE($20, franchise_end_date),
+           quittancement_frequency = COALESCE($21, quittancement_frequency),
+           type_bail = COALESCE($22::type_bail_enum, type_bail),
+           status = COALESCE($23, status),
+           notes = COALESCE($24, notes),
+           solde_reprise = COALESCE($25, solde_reprise),
+           solde_reprise_date = $26,
+           loyer_reprise = $27
+       WHERE id = $28
        RETURNING *`,
       [
-        loyer_ht, charges_ht, tva_applicable, tva_rate, tva_on_charges,
+        start_date || null, loyer_ht, charges_ht, tva_applicable, tva_rate, tva_on_charges,
         end_date, notice_period_months, depot_garantie, depot_garantie_received_date,
         indexation_applicable, indice_id,
         indice_base_value, indice_base_year, indice_base_quarter,
-        indexation_date_month, indexation_date_day,
+        indexation_date_month, indexation_date_day, indexation_frequency || null,
         franchise_start_date, franchise_end_date, quittancement_frequency,
         type_bail, status, notes, solde_reprise,
         solde_reprise_date || null, loyer_reprise || null, id
