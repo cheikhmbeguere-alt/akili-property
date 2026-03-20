@@ -6,11 +6,11 @@ import { AuthRequest, resolveRequestSciIds } from '../middleware/auth.middleware
 const MOIS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
                  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
-type CRGMode = 'mois' | 'trimestre' | 'annee' | 'date';
+type CRGMode = 'mois' | 'borne' | 'annee' | 'date';
 
 // ─── Calcul des bornes de période ────────────────────────────────────────────
 
-function getPeriodBounds(mode: CRGMode, annee: number, mois?: number, trimestre?: number) {
+function getPeriodBounds(mode: CRGMode, annee: number, mois?: number, date_debut?: string, date_fin?: string) {
   switch (mode) {
     case 'mois': {
       const m = mois!;
@@ -18,14 +18,13 @@ function getPeriodBounds(mode: CRGMode, annee: number, mois?: number, trimestre?
       const end   = new Date(annee, m, 0).toISOString().split('T')[0];
       return { start, end, nbMois: 1, label: `${MOIS_FR[m]} ${annee}` };
     }
-    case 'trimestre': {
-      const t     = trimestre!;
-      const startM = (t - 1) * 3 + 1;
-      const endM   = t * 3;
-      const start  = `${annee}-${String(startM).padStart(2, '0')}-01`;
-      const end    = new Date(annee, endM, 0).toISOString().split('T')[0];
-      const noms   = ['', 'Jan–Mar', 'Avr–Juin', 'Juil–Sep', 'Oct–Déc'];
-      return { start, end, nbMois: 3, label: `T${t} ${annee} (${noms[t]})` };
+    case 'borne': {
+      const d1 = new Date(date_debut!);
+      const d2 = new Date(date_fin!);
+      const formated_date_debut = d1.toLocaleDateString('fr-FR');
+      const formated_date_fin   = d2.toLocaleDateString('fr-FR');
+      const nbMois = Math.max(1, Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24 * 30)));
+      return { start: date_debut!, end: date_fin!, nbMois, label: `Du ${formated_date_debut} au ${formated_date_fin}` };
     }
     case 'annee':
       return { start: `${annee}-01-01`, end: `${annee}-12-31`, nbMois: 12, label: `Année ${annee}` };
@@ -40,10 +39,11 @@ async function fetchCRGData(
   mode: CRGMode,
   annee: number,
   mois: number,
-  trimestre: number,
   date_ref: string,
   immeuble_id?: number,
   authorizedSciIds?: number[] | null,
+  date_debut?: string,
+  date_fin?: string,
 ) {
   let bauxRows: any[];
 
@@ -112,9 +112,9 @@ async function fetchCRGData(
     `, p);
     bauxRows = r.rows;
 
-  // ── Modes période (mois / trimestre / annee) ──────────────────────────────
+  // ── Modes période (mois / borne / annee) ──────────────────────────────────
   } else {
-    const { start, end, nbMois } = getPeriodBounds(mode, annee, mois, trimestre);
+    const { start, end, nbMois } = getPeriodBounds(mode, annee, mois, date_debut, date_fin);
     const p: any[] = [start, end];
     const immFilter = immeuble_id ? `AND im.id = $${p.push(immeuble_id)}` : '';
     const sciFilter = buildSciFilter(p.length + 1, p);
@@ -216,15 +216,18 @@ export const getCompteRenduGestion = async (req: AuthRequest, res: Response) => 
     const mode       = (req.query.mode       as CRGMode) || 'mois';
     const annee      = req.query.annee       ? parseInt(String(req.query.annee))       : new Date().getFullYear();
     const mois       = req.query.mois        ? parseInt(String(req.query.mois))        : new Date().getMonth() + 1;
-    const trimestre  = req.query.trimestre   ? parseInt(String(req.query.trimestre))   : Math.ceil((new Date().getMonth() + 1) / 3);
     const date_ref   = req.query.date_ref    ? String(req.query.date_ref)              : new Date().toISOString().split('T')[0];
+    const date_debut = req.query.date_debut  ? String(req.query.date_debut)            : undefined;
+    const date_fin   = req.query.date_fin    ? String(req.query.date_fin)              : undefined;
     const immeubleId = req.query.immeuble_id ? parseInt(String(req.query.immeuble_id)) : undefined;
 
-    const data = await fetchCRGData(mode, annee, mois, trimestre, date_ref, immeubleId, sciIds);
+    const data = await fetchCRGData(mode, annee, mois, date_ref, immeubleId, sciIds, date_debut, date_fin);
 
     const periodeLabel = mode === 'date'
       ? `À date du ${new Date(date_ref).toLocaleDateString('fr-FR')}`
-      : getPeriodBounds(mode, annee, mois, trimestre).label;
+      : mode === 'borne'
+      ? getPeriodBounds(mode, annee, mois, date_debut, date_fin).label
+      : getPeriodBounds(mode, annee, mois).label;
 
     res.json({ periode: { mode, label: periodeLabel }, ...data });
   } catch (error) {
@@ -245,15 +248,18 @@ export const exportCRGExcel = async (req: AuthRequest, res: Response) => {
     const mode       = (req.query.mode       as CRGMode) || 'mois';
     const annee      = req.query.annee       ? parseInt(String(req.query.annee))       : new Date().getFullYear();
     const mois       = req.query.mois        ? parseInt(String(req.query.mois))        : new Date().getMonth() + 1;
-    const trimestre  = req.query.trimestre   ? parseInt(String(req.query.trimestre))   : Math.ceil((new Date().getMonth() + 1) / 3);
     const date_ref   = req.query.date_ref    ? String(req.query.date_ref)              : new Date().toISOString().split('T')[0];
+    const date_debut = req.query.date_debut  ? String(req.query.date_debut)            : undefined;
+    const date_fin   = req.query.date_fin    ? String(req.query.date_fin)              : undefined;
     const immeubleId = req.query.immeuble_id ? parseInt(String(req.query.immeuble_id)) : undefined;
 
-    const { baux, lots_vacants, kpis } = await fetchCRGData(mode, annee, mois, trimestre, date_ref, immeubleId, sciIds);
+    const { baux, lots_vacants, kpis } = await fetchCRGData(mode, annee, mois, date_ref, immeubleId, sciIds, date_debut, date_fin);
 
     const periodeLabel = mode === 'date'
       ? `À date du ${new Date(date_ref).toLocaleDateString('fr-FR')}`
-      : getPeriodBounds(mode, annee, mois, trimestre).label;
+      : mode === 'borne'
+      ? getPeriodBounds(mode, annee, mois, date_debut, date_fin).label
+      : getPeriodBounds(mode, annee, mois).label;
 
     const isDateMode = mode === 'date';
 
@@ -474,8 +480,8 @@ export const exportCRGExcel = async (req: AuthRequest, res: Response) => {
     ws.autoFilter = { from: { row: headerRow.number, column: 1 }, to: { row: headerRow.number, column: nbCols } };
     ws.views = [{ state: 'frozen', xSplit: 0, ySplit: headerRow.number }];
 
-    const slug = mode === 'date' ? `a-date-${date_ref}`
-               : mode === 'trimestre' ? `t${trimestre}-${annee}`
+    const slug = mode === 'date'  ? `a-date-${date_ref}`
+               : mode === 'borne' ? `borne-${date_debut}-${date_fin}`
                : mode === 'annee' ? `annee-${annee}`
                : `${MOIS_FR[mois].toLowerCase()}-${annee}`;
     const filename = `crg-${slug}.xlsx`;

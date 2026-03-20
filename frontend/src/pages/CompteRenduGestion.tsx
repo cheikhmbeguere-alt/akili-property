@@ -7,12 +7,13 @@ import QuittancesEnAttente from '../components/QuittancesEnAttente'
 const MOIS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
                  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
 
-const currentYear    = new Date().getFullYear()
-const currentMonth   = new Date().getMonth() + 1
-const currentQuarter = Math.ceil(currentMonth / 3)
-const today          = new Date().toISOString().split('T')[0]
+const currentYear  = new Date().getFullYear()
+const currentMonth = new Date().getMonth() + 1
+const today        = new Date().toISOString().split('T')[0]
+// First day of current month in YYYY-MM-DD format
+const firstOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`
 
-type CRGMode = 'mois' | 'trimestre' | 'annee' | 'date'
+type CRGMode = 'mois' | 'borne' | 'annee' | 'date'
 
 // ── Composants utilitaires ───────────────────────────────────────────────────
 
@@ -48,17 +49,18 @@ function StatutBadge({ impaye }: { impaye: boolean }) {
 // ── Page principale ──────────────────────────────────────────────────────────
 
 const MODES: { key: CRGMode; label: string; emoji: string }[] = [
-  { key: 'mois',      label: 'Mensuel',     emoji: '📅' },
-  { key: 'trimestre', label: 'Trimestriel', emoji: '📆' },
-  { key: 'annee',     label: 'Annuel',      emoji: '🗓️' },
-  { key: 'date',      label: 'À date',      emoji: '📌' },
+  { key: 'mois',  label: 'Par mois',      emoji: '📅' },
+  { key: 'borne', label: 'Par période',   emoji: '📆' },
+  { key: 'annee', label: 'Année complète', emoji: '🗓️' },
+  { key: 'date',  label: 'Solde à date',  emoji: '📌' },
 ]
 
 export default function CompteRenduGestion() {
   const [mode, setMode]             = useState<CRGMode>('mois')
   const [annee, setAnnee]           = useState(currentYear)
   const [mois, setMois]             = useState(currentMonth)
-  const [trimestre, setTrimestre]   = useState(currentQuarter)
+  const [dateBorne1, setDateBorne1] = useState(firstOfMonth)
+  const [dateBorne2, setDateBorne2] = useState(today)
   const [dateRef, setDateRef]       = useState(today)
   const [immeubleId, setImmeubleId] = useState('')
   const [exporting, setExporting]   = useState(false)
@@ -76,13 +78,13 @@ export default function CompteRenduGestion() {
   // Paramètres de la requête (calculés selon le mode)
   const queryParams = useMemo(() => {
     const p: Record<string, any> = { mode }
-    if (mode !== 'date') p.annee = annee
-    if (mode === 'mois')      p.mois      = mois
-    if (mode === 'trimestre') p.trimestre = trimestre
-    if (mode === 'date')      p.date_ref  = dateRef
-    if (immeubleId)           p.immeuble_id = immeubleId
+    if (mode !== 'date' && mode !== 'borne') p.annee = annee
+    if (mode === 'mois')  p.mois      = mois
+    if (mode === 'borne') { p.date_debut = dateBorne1; p.date_fin = dateBorne2; }
+    if (mode === 'date')  p.date_ref  = dateRef
+    if (immeubleId)       p.immeuble_id = immeubleId
     return p
-  }, [mode, annee, mois, trimestre, dateRef, immeubleId])
+  }, [mode, annee, mois, dateBorne1, dateBorne2, dateRef, immeubleId])
 
   // Données CRG
   const { data, isLoading, error } = useQuery({
@@ -121,9 +123,9 @@ export default function CompteRenduGestion() {
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href     = url
-      const slug = mode === 'date'      ? `a-date-${dateRef}`
-                 : mode === 'trimestre' ? `t${trimestre}-${annee}`
-                 : mode === 'annee'     ? `annee-${annee}`
+      const slug = mode === 'date'  ? `a-date-${dateRef}`
+                 : mode === 'borne' ? `borne-${dateBorne1}-${dateBorne2}`
+                 : mode === 'annee' ? `annee-${annee}`
                  : `${MOIS_FR[mois].toLowerCase()}-${annee}`
       a.download = `crg-${slug}.xlsx`
       a.click()
@@ -202,22 +204,30 @@ export default function CompteRenduGestion() {
             </div>
           )}
 
-          {/* Trimestre (mode trimestre uniquement) */}
-          {mode === 'trimestre' && (
-            <div>
-              <label className="block text-xs font-semibold mb-1" style={{ color: '#374151' }}>Trimestre</label>
-              <select
-                value={trimestre}
-                onChange={e => setTrimestre(Number(e.target.value))}
-                className="border rounded-lg px-3 py-2 text-sm outline-none"
-                style={{ borderColor: '#e2e8f0', minWidth: '160px', backgroundColor: '#fff' }}
-              >
-                <option value={1}>T1 — Janvier · Février · Mars</option>
-                <option value={2}>T2 — Avril · Mai · Juin</option>
-                <option value={3}>T3 — Juillet · Août · Septembre</option>
-                <option value={4}>T4 — Octobre · Novembre · Décembre</option>
-              </select>
-            </div>
+          {/* Plage de dates (mode borne uniquement) */}
+          {mode === 'borne' && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#374151' }}>Date de début</label>
+                <input
+                  type="date"
+                  value={dateBorne1}
+                  onChange={e => setDateBorne1(e.target.value)}
+                  className="border rounded-lg px-3 py-2 text-sm outline-none"
+                  style={{ borderColor: '#e2e8f0', backgroundColor: '#fff' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1" style={{ color: '#374151' }}>Date de fin</label>
+                <input
+                  type="date"
+                  value={dateBorne2}
+                  onChange={e => setDateBorne2(e.target.value)}
+                  className="border rounded-lg px-3 py-2 text-sm outline-none"
+                  style={{ borderColor: '#e2e8f0', backgroundColor: '#fff' }}
+                />
+              </div>
+            </>
           )}
 
           {/* Date de référence (mode date uniquement) */}
@@ -239,8 +249,8 @@ export default function CompteRenduGestion() {
             </div>
           )}
 
-          {/* Année (tous modes sauf date) */}
-          {mode !== 'date' && (
+          {/* Année (modes mois et annee uniquement) */}
+          {(mode === 'mois' || mode === 'annee') && (
             <div>
               <label className="block text-xs font-semibold mb-1" style={{ color: '#374151' }}>Année</label>
               <input
