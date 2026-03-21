@@ -134,6 +134,7 @@ const ADMIN_ITEMS = [
   { path: '/import-global',      label: 'Import données', emoji: '📥' },
   { path: '/admin/utilisateurs', label: 'Utilisateurs',   emoji: '⚙️' },
   { path: '/admin/cabinets',     label: 'Clients',        emoji: '🏛️', superadminOnly: true },
+  { path: '/admin/audit',        label: 'Journal d\'audit', emoji: '🔍', superadminOnly: true },
 ]
 
 // ─── Layout ────────────────────────────────────────────────────────────────────

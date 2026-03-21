@@ -17,6 +17,7 @@ import RegularisationCharges from './pages/RegularisationCharges'
 import ImportGlobal from './pages/ImportGlobal'
 import Layout from './components/Layout'
 import AuthCallback from './pages/AuthCallback'
+import AuditLog from './pages/AuditLog'
 
 function App() {
   const { user, loading } = useAuth()
@@ -54,6 +55,7 @@ function App() {
           <Route path="/import-global" element={<ImportGlobal />} />
           <Route path="/admin/utilisateurs" element={<AdminUsers />} />
           <Route path="/admin/cabinets" element={<AdminTenants />} />
+          <Route path="/admin/audit" element={<AuditLog />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

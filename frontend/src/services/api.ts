@@ -191,6 +191,8 @@ export const adminAPI = {
   getSciPermissions: (userId: number) => api.get(`/admin/users/${userId}/sci-permissions`),
   setSciPermissions: (userId: number, sci_ids: number[]) =>
     api.put(`/admin/users/${userId}/sci-permissions`, { sci_ids }),
+  getAuditLogs: (params?: Record<string, string>) =>
+    api.get('/admin/audit-logs', { params }),
 }
 
 export const tenantsAPI = {

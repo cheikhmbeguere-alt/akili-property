@@ -220,3 +220,55 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Erreur lors de la mise à jour' });
   }
 };
+
+// ─── Journal d'audit (superadmin uniquement) ──────────────────────────────────
+export const getAuditLogs = async (req: AuthRequest, res: Response) => {
+  try {
+    const { page = '1', limit = '50', user_id, action, entity_type, date_from, date_to } = req.query as Record<string, string>
+    const offset = (parseInt(page) - 1) * parseInt(limit)
+
+    const conditions: string[] = []
+    const params: any[] = []
+    let p = 1
+
+    if (user_id)     { conditions.push(`al.user_id = $${p++}`);       params.push(parseInt(user_id)) }
+    if (action)      { conditions.push(`al.action ILIKE $${p++}`);    params.push(`%${action}%`) }
+    if (entity_type) { conditions.push(`al.entity_type = $${p++}`);   params.push(entity_type) }
+    if (date_from)   { conditions.push(`al.created_at >= $${p++}`);   params.push(date_from) }
+    if (date_to)     { conditions.push(`al.created_at <= $${p++}`);   params.push(date_to + ' 23:59:59') }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    const [logsRes, countRes] = await Promise.all([
+      pool.query(`
+        SELECT
+          al.id,
+          al.action,
+          al.entity_type,
+          al.entity_id,
+          al.details,
+          al.ip_address,
+          al.created_at,
+          u.email        AS user_email,
+          u.first_name   AS user_first_name,
+          u.last_name    AS user_last_name
+        FROM audit_logs al
+        LEFT JOIN users u ON u.id = al.user_id
+        ${where}
+        ORDER BY al.created_at DESC
+        LIMIT $${p} OFFSET $${p + 1}
+      `, [...params, parseInt(limit), offset]),
+      pool.query(`SELECT COUNT(*) FROM audit_logs al ${where}`, params),
+    ])
+
+    res.json({
+      logs:  logsRes.rows,
+      total: parseInt(countRes.rows[0].count),
+      page:  parseInt(page),
+      limit: parseInt(limit),
+    })
+  } catch (error) {
+    console.error('getAuditLogs error:', error)
+    res.status(500).json({ error: 'Erreur serveur' })
+  }
+}
