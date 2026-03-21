@@ -16,6 +16,7 @@ import DepotGarantie from './pages/DepotGarantie'
 import RegularisationCharges from './pages/RegularisationCharges'
 import ImportGlobal from './pages/ImportGlobal'
 import Layout from './components/Layout'
+import AuthCallback from './pages/AuthCallback'
 
 function App() {
   const { user, loading } = useAuth()
@@ -29,6 +30,10 @@ function App() {
   }
 
   if (!user) {
+    // La page /auth-callback doit être accessible même sans être connecté
+    if (window.location.pathname === '/auth-callback') {
+      return <AuthCallback />
+    }
     return <Login />
   }
 

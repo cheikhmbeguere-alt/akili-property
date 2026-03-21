@@ -126,6 +126,29 @@ export default function Login() {
             <p className="text-sm mt-1" style={{ color: '#6b7280' }}>Accédez à votre espace de gestion</p>
           </div>
 
+          {/* Bouton Microsoft — méthode principale */}
+          <a
+            href="/api/auth/microsoft"
+            className="flex items-center justify-center gap-3 w-full py-2.5 px-4 rounded-lg border text-sm font-medium transition-colors hover:bg-gray-50"
+            style={{ borderColor: '#d1d5db', color: '#374151' }}
+          >
+            {/* Logo Microsoft officiel */}
+            <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+              <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+              <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+              <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+              <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+            </svg>
+            Se connecter avec Microsoft
+          </a>
+
+          {/* Séparateur */}
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px" style={{ backgroundColor: '#e5e7eb' }} />
+            <span className="text-xs" style={{ color: '#9ca3af' }}>ou</span>
+            <div className="flex-1 h-px" style={{ backgroundColor: '#e5e7eb' }} />
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="email" className="block text-sm font-medium mb-1.5" style={{ color: '#374151' }}>
@@ -137,7 +160,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                placeholder="admin@property.com"
+                placeholder="votre@email.fr"
                 className="input-field"
               />
             </div>
@@ -173,15 +196,6 @@ export default function Login() {
               ) : 'Se connecter'}
             </button>
           </form>
-
-          <div
-            className="mt-6 p-4 rounded-xl text-xs"
-            style={{ backgroundColor: '#F5F0DC', color: '#978A47', border: '1px solid #E8DFC0' }}
-          >
-            <p className="font-medium mb-1">Accès démo</p>
-            <p>Email : admin@property.com</p>
-            <p>Mot de passe : Admin123!</p>
-          </div>
         </div>
       </div>
     </div>
