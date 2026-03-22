@@ -182,6 +182,7 @@ export const pennylaneAPI = {
   getTransactions:  (sciId: number, params?: any)          => api.get('/pennylane/transactions', { params: { sci_id: sciId, ...params } }),
   importOne:        (data: any)                            => api.post('/pennylane/import', data),
   importBatch:      (items: any[])                         => api.post('/pennylane/import-batch', { items }),
+  getTreasury:      ()                                     => api.get('/pennylane/treasury'),
 }
 
 export const adminAPI = {

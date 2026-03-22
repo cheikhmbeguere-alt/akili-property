@@ -3,20 +3,30 @@
   "configurations": [
     {
       "name": "Backend (Express API)",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "/Users/cheikhmbeguere/Projects/property-management/backend", "run", "dev"],
-      "port": 3000
+      "runtimeExecutable": "/opt/homebrew/opt/node@20/bin/node",
+      "runtimeArgs": [
+        "/Users/cheikhmb/Documents/akili-property/backend/node_modules/.bin/ts-node",
+        "/Users/cheikhmb/Documents/akili-property/backend/src/index.ts"
+      ],
+      "port": 3000,
+      "autoPort": false
     },
     {
       "name": "Frontend (Vite + React)",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "/Users/cheikhmbeguere/Projects/property-management/frontend", "run", "dev"],
+      "runtimeExecutable": "/opt/homebrew/opt/node@20/bin/node",
+      "runtimeArgs": [
+        "/Users/cheikhmb/Documents/akili-property/frontend/node_modules/.bin/vite",
+        "--config", "/Users/cheikhmb/Documents/akili-property/frontend/vite.config.ts"
+      ],
       "port": 5173
     },
     {
       "name": "Portal (Portail Locataire)",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "/Users/cheikhmbeguere/Projects/property-management/frontend-portal", "run", "dev"],
+      "runtimeExecutable": "/opt/homebrew/opt/node@20/bin/node",
+      "runtimeArgs": [
+        "/Users/cheikhmb/Documents/akili-property/frontend-portal/node_modules/.bin/vite",
+        "--config", "/Users/cheikhmb/Documents/akili-property/frontend-portal/vite.config.ts"
+      ],
       "port": 5175
     }
   ]

@@ -1,17 +1,16 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { adminAPI, sciAPI, tenantsAPI } from '../services/api'
+import { adminAPI } from '../services/api'
 import { useRole } from '../hooks/useRole'
 import { useAuth } from '../hooks/useAuth'
 
-type Role = 'viewer' | 'editor' | 'admin' | 'superadmin'
+type Role = 'viewer' | 'editor' | 'admin'
 
 const ROLE_CONFIG: Record<Role, { label: string; color: string; bg: string; desc: string }> = {
-  viewer:     { label: 'Lecteur',        color: '#6b7280', bg: '#f1f5f9', desc: 'Lecture seule — aucune action' },
-  editor:     { label: 'Éditeur',        color: '#978A47', bg: '#F5F0DC', desc: 'Créer et modifier — pas de suppression' },
-  admin:      { label: 'Administrateur', color: '#1a1a1a', bg: '#e2e8f0', desc: 'Accès complet + gestion des utilisateurs' },
-  superadmin: { label: 'Super Admin',    color: '#7c3aed', bg: '#ede9fe', desc: 'Accès cross-tenant — AKILI uniquement' },
+  viewer: { label: 'Lecteur',        color: '#6b7280', bg: '#f1f5f9', desc: 'Lecture seule — aucune action' },
+  editor: { label: 'Éditeur',        color: '#978A47', bg: '#F5F0DC', desc: 'Créer et modifier — pas de suppression' },
+  admin:  { label: 'Administrateur', color: '#1a1a1a', bg: '#e2e8f0', desc: 'Accès complet + gestion des utilisateurs' },
 }
 
 function RoleBadge({ role }: { role: Role }) {
@@ -26,41 +25,27 @@ function RoleBadge({ role }: { role: Role }) {
 
 interface UserFormData {
   first_name: string; last_name: string; email: string
-  password: string; role: Role; tenant_id: number | ''
+  password: string; role: Role
 }
 
 const emptyForm: UserFormData = {
-  first_name: '', last_name: '', email: '', password: '', role: 'viewer', tenant_id: ''
+  first_name: '', last_name: '', email: '', password: '', role: 'viewer'
 }
 
 export default function AdminUsers() {
-  const { isAdmin, isSuperAdmin } = useRole()
+  const { isAdmin } = useRole()
   const { user: me } = useAuth()
   const queryClient = useQueryClient()
 
-  const [showForm, setShowForm]         = useState(false)
-  const [editingUser, setEditingUser]   = useState<any>(null)
-  const [form, setForm]                 = useState<UserFormData>(emptyForm)
-  const [loading, setLoading]           = useState(false)
-  const [sciPerms, setSciPerms]         = useState<number[]>([])
-  const [sciPermsLoading, setSciPermsLoading] = useState(false)
+  const [showForm, setShowForm]       = useState(false)
+  const [editingUser, setEditingUser] = useState<any>(null)
+  const [form, setForm]               = useState<UserFormData>(emptyForm)
+  const [loading, setLoading]         = useState(false)
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['admin-users'],
     queryFn: async () => (await adminAPI.getUsers()).data,
     enabled: isAdmin,
-  })
-
-  const { data: allScis = [] } = useQuery({
-    queryKey: ['all-scis-admin'],
-    queryFn: async () => (await sciAPI.getAll()).data,
-    enabled: isAdmin,
-  })
-
-  const { data: allTenants = [] } = useQuery({
-    queryKey: ['tenants'],
-    queryFn: async () => (await tenantsAPI.getAll()).data,
-    enabled: isSuperAdmin,
   })
 
   if (!isAdmin) {
@@ -78,30 +63,13 @@ export default function AdminUsers() {
   const openCreate = () => {
     setEditingUser(null)
     setForm(emptyForm)
-    setSciPerms([])
     setShowForm(true)
   }
 
-  const openEdit = async (u: any) => {
+  const openEdit = (u: any) => {
     setEditingUser(u)
-    setForm({ first_name: u.first_name, last_name: u.last_name, email: u.email, password: '', role: u.role, tenant_id: '' })
-    setSciPerms([])
-    setSciPermsLoading(true)
+    setForm({ first_name: u.first_name, last_name: u.last_name, email: u.email, password: '', role: u.role })
     setShowForm(true)
-    try {
-      const res = await adminAPI.getSciPermissions(u.id)
-      setSciPerms(res.data.sci_ids ?? [])
-    } catch {
-      // ignore
-    } finally {
-      setSciPermsLoading(false)
-    }
-  }
-
-  const toggleSciPerm = (sciId: number) => {
-    setSciPerms(prev =>
-      prev.includes(sciId) ? prev.filter(id => id !== sciId) : [...prev, sciId]
-    )
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -112,17 +80,9 @@ export default function AdminUsers() {
         const payload: any = { first_name: form.first_name, last_name: form.last_name, role: form.role }
         if (form.password) payload.password = form.password
         await adminAPI.updateUser(editingUser.id, payload)
-        // Sauvegarder les permissions SCI (sauf pour les admins — ils ont tout par défaut)
-        if (form.role !== 'admin') {
-          await adminAPI.setSciPermissions(editingUser.id, sciPerms)
-        }
         toast.success('Utilisateur mis à jour')
       } else {
-        const res = await adminAPI.createUser(form)
-        // Pour un nouvel utilisateur non-admin, sauvegarder les permissions SCI
-        if (form.role !== 'admin' && res.data?.id) {
-          await adminAPI.setSciPermissions(res.data.id, sciPerms)
-        }
+        await adminAPI.createUser(form)
         toast.success('Utilisateur créé')
       }
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
@@ -172,16 +132,13 @@ export default function AdminUsers() {
 
       {/* Légende des rôles */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-        {(['viewer', 'editor', 'admin'] as Role[]).map(role => {
-          const c = ROLE_CONFIG[role]
-          return (
-            <div key={role} className="rounded-xl border p-3 flex items-start gap-3"
-              style={{ borderColor: '#e2e8f0' }}>
-              <RoleBadge role={role} />
-              <p className="text-xs leading-relaxed" style={{ color: '#6b7280' }}>{c.desc}</p>
-            </div>
-          )
-        })}
+        {(Object.entries(ROLE_CONFIG) as [Role, typeof ROLE_CONFIG[Role]][]).map(([role, c]) => (
+          <div key={role} className="rounded-xl border p-3 flex items-start gap-3"
+            style={{ borderColor: '#e2e8f0' }}>
+            <RoleBadge role={role} />
+            <p className="text-xs leading-relaxed" style={{ color: '#6b7280' }}>{c.desc}</p>
+          </div>
+        ))}
       </div>
 
       {/* Table */}
@@ -196,7 +153,7 @@ export default function AdminUsers() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ backgroundColor: '#faf9f7', borderBottom: '1px solid #ede9e6' }}>
-                  {['Utilisateur', 'Email', ...(isSuperAdmin ? ['Client'] : []), 'Rôle', 'Statut', 'Actions'].map(h => (
+                  {['Utilisateur', 'Email', 'Rôle', 'Statut', 'Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
                       style={{ color: '#9ca3af' }}>{h}</th>
                   ))}
@@ -220,14 +177,6 @@ export default function AdminUsers() {
                       </div>
                     </td>
                     <td className="px-4 py-3" style={{ color: '#6b7280' }}>{u.email}</td>
-                    {isSuperAdmin && (
-                      <td className="px-4 py-3">
-                        <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                          style={{ backgroundColor: '#F5F0DC', color: '#978A47' }}>
-                          {u.tenant_name ?? '—'}
-                        </span>
-                      </td>
-                    )}
                     <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
                     <td className="px-4 py-3">
                       <span className="text-xs px-2 py-0.5 rounded-full font-medium"
@@ -265,7 +214,7 @@ export default function AdminUsers() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
           onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6"
             onClick={e => e.stopPropagation()}>
             <h2 className="text-base font-bold mb-5" style={{ color: '#1a1a1a' }}>
               {editingUser ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'}
@@ -290,21 +239,6 @@ export default function AdminUsers() {
                     className={inputCls} style={{ borderColor: '#e2e8f0' }} placeholder="jean@exemple.com" />
                 </div>
               )}
-              {!editingUser && isSuperAdmin && (
-                <div>
-                  <label className={labelCls} style={{ color: '#374151' }}>Client *</label>
-                  <select
-                    required
-                    value={form.tenant_id}
-                    onChange={e => set('tenant_id', e.target.value)}
-                    className={inputCls} style={{ borderColor: '#e2e8f0', backgroundColor: '#fff' }}>
-                    <option value="">— Choisir un client —</option>
-                    {allTenants.map((t: any) => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
               <div>
                 <label className={labelCls} style={{ color: '#374151' }}>
                   Mot de passe {editingUser ? '(laisser vide = inchangé)' : '*'}
@@ -319,10 +253,9 @@ export default function AdminUsers() {
                 <select value={form.role} onChange={e => set('role', e.target.value as Role)}
                   disabled={editingUser?.id === me?.id}
                   className={inputCls} style={{ borderColor: '#e2e8f0', backgroundColor: '#fff' }}>
-                  {(['viewer', 'editor', 'admin'] as Role[]).map(role => {
-                    const c = ROLE_CONFIG[role]
-                    return <option key={role} value={role}>{c.label} — {c.desc}</option>
-                  })}
+                  {(Object.entries(ROLE_CONFIG) as [Role, typeof ROLE_CONFIG[Role]][]).map(([role, c]) => (
+                    <option key={role} value={role}>{c.label} — {c.desc}</option>
+                  ))}
                 </select>
                 {editingUser?.id === me?.id && (
                   <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>
@@ -330,57 +263,6 @@ export default function AdminUsers() {
                   </p>
                 )}
               </div>
-
-              {/* SCI Permissions */}
-              <div className="rounded-xl border p-4" style={{ borderColor: '#e2e8f0', backgroundColor: '#faf9f7' }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span style={{ fontSize: '16px' }}>🏢</span>
-                  <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#6b7280' }}>
-                    Accès aux sociétés
-                  </span>
-                </div>
-                {form.role === 'admin' ? (
-                  <p className="text-xs" style={{ color: '#6b7280' }}>
-                    Les administrateurs ont accès à toutes les sociétés par défaut.
-                  </p>
-                ) : sciPermsLoading ? (
-                  <div className="flex items-center gap-2 py-1">
-                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-t-transparent"
-                      style={{ borderColor: '#978A47', borderTopColor: 'transparent' }} />
-                    <span className="text-xs" style={{ color: '#9ca3af' }}>Chargement…</span>
-                  </div>
-                ) : allScis.length === 0 ? (
-                  <p className="text-xs" style={{ color: '#9ca3af' }}>Aucune société créée.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {allScis.map((sci: any) => (
-                      <label key={sci.id} className="flex items-center gap-2 cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={sciPerms.includes(sci.id)}
-                          onChange={() => toggleSciPerm(sci.id)}
-                          className="rounded"
-                          style={{ accentColor: '#978A47' }}
-                        />
-                        <span className="text-sm" style={{ color: '#374151' }}>
-                          {sci.name}
-                        </span>
-                        {sci.siret && (
-                          <span className="text-xs" style={{ color: '#9ca3af' }}>
-                            {sci.siret}
-                          </span>
-                        )}
-                      </label>
-                    ))}
-                    <p className="text-xs mt-2" style={{ color: '#9ca3af' }}>
-                      {sciPerms.length === 0
-                        ? '⚠️ Aucun accès — cet utilisateur ne verra aucune donnée'
-                        : `✓ ${sciPerms.length} société(s) autorisée(s)`}
-                    </p>
-                  </div>
-                )}
-              </div>
-
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)}
                   className="px-4 py-2 text-sm font-medium rounded-lg border"

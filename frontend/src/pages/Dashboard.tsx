@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { sciAPI, immeublesAPI, lotsAPI, locatairesAPI, bauxAPI, impayesAPI } from '../services/api'
+import { sciAPI, immeublesAPI, lotsAPI, locatairesAPI, bauxAPI, impayesAPI, pennylaneAPI } from '../services/api'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import { differenceInDays, addMonths } from 'date-fns'
 
@@ -39,6 +39,12 @@ export default function Dashboard() {
     queryKey: ['impayes-report'],
     queryFn: async () => (await impayesAPI.getReport()).data,
     staleTime: 60_000,
+  })
+  const { data: treasuryData, isLoading: treasuryLoading, error: treasuryError } = useQuery({
+    queryKey: ['treasury'],
+    queryFn: async () => (await pennylaneAPI.getTreasury()).data,
+    staleTime: 5 * 60_000, // rafraîchi toutes les 5 min
+    retry: false,
   })
 
   const bailsActifs = bailList.filter((b: any) => b.status === 'actif')
@@ -350,6 +356,98 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── Trésorerie Pennylane ── */}
+      <div className="card p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <span style={{ fontSize: '18px' }}>🏦</span>
+            <h3 className="text-sm font-semibold" style={{ color: '#0f172a' }}>Trésorerie en direct</h3>
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: '#f0fdf4', color: '#16a34a' }}>Pennylane</span>
+          </div>
+          {!treasuryLoading && !treasuryError && (
+            <div className="text-right">
+              <div className="text-xs font-medium" style={{ color: '#9ca3af' }}>Total consolidé</div>
+              <div className="text-xl font-bold" style={{ color: (treasuryData?.grand_total || 0) >= 0 ? '#16a34a' : '#dc2626' }}>
+                {(treasuryData?.grand_total || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+              </div>
+            </div>
+          )}
+        </div>
+
+        {treasuryLoading && (
+          <div className="flex items-center gap-2 py-4" style={{ color: '#9ca3af' }}>
+            <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full" />
+            <span className="text-sm">Connexion à Pennylane…</span>
+          </div>
+        )}
+
+        {treasuryError && (
+          <div className="text-sm rounded-lg p-3" style={{ backgroundColor: '#fff5f5', color: '#dc2626' }}>
+            Impossible de récupérer les données Pennylane. Vérifiez les tokens dans les paramètres.
+          </div>
+        )}
+
+        {!treasuryLoading && !treasuryError && treasuryData && (
+          <div className="space-y-3">
+            {(treasuryData.scis || []).map((sci: any) => (
+              <div key={sci.sci_id}>
+                {/* Ligne SCI */}
+                <div className="flex items-center justify-between py-2 border-b" style={{ borderColor: '#f3f4f6' }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ backgroundColor: '#F5F0DC', color: '#978A47' }}>
+                      {sci.sci_name}
+                    </span>
+                    {sci.error && (
+                      <span className="text-xs" style={{ color: '#f59e0b' }}>
+                        ⚠️ {sci.error === 'Scope manquant (HTTP 403)' ? 'Token à renouveler (scope bank_accounts manquant)' : sci.error}
+                      </span>
+                    )}
+                  </div>
+                  {!sci.error && (
+                    <span className="text-sm font-bold" style={{ color: sci.total_balance >= 0 ? '#16a34a' : '#dc2626' }}>
+                      {(sci.total_balance || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                    </span>
+                  )}
+                </div>
+
+                {/* Comptes de la SCI */}
+                {(sci.accounts || []).map((acc: any) => (
+                  <div key={acc.id} className="flex items-center justify-between px-3 py-1.5" style={{ backgroundColor: '#fafaf9' }}>
+                    <div className="text-xs" style={{ color: '#6b7280' }}>
+                      {acc.name}
+                      {acc.iban && <span className="ml-2 font-mono" style={{ color: '#9ca3af' }}>{acc.iban.slice(-4).padStart(acc.iban.length, '•').slice(-12)}</span>}
+                    </div>
+                    <span className="text-xs font-semibold" style={{ color: acc.balance >= 0 ? '#374151' : '#dc2626' }}>
+                      {acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                    </span>
+                  </div>
+                ))}
+
+                {/* Mini graphe flux mensuel */}
+                {(sci.monthly_flow || []).length > 0 && (
+                  <div className="mt-2 mb-3" style={{ height: '60px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={sci.monthly_flow} barGap={2} barCategoryGap="20%">
+                        <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                        <Tooltip
+                          formatter={(val: any, name: string) => [
+                            `${parseFloat(val).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`,
+                            name === 'income' ? 'Encaissements' : 'Dépenses',
+                          ]}
+                          contentStyle={{ fontSize: '11px', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                        />
+                        <Bar dataKey="income"   fill="#86efac" radius={[2,2,0,0]} />
+                        <Bar dataKey="expenses" fill="#fca5a5" radius={[2,2,0,0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Accès rapides */}

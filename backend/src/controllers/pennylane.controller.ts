@@ -300,3 +300,86 @@ export const importBatch = async (req: AuthRequest, res: Response) => {
     client.release();
   }
 };
+
+// ─── GET /pennylane/treasury ──────────────────────────────────────────────────
+// Retourne les soldes bancaires en direct pour toutes les SCI configurées
+export const getTreasury = async (req: AuthRequest, res: Response) => {
+  try {
+    const scis = await pool.query(`
+      SELECT id, name, pennylane_api_token
+      FROM sci
+      WHERE pennylane_api_token IS NOT NULL
+      ORDER BY name
+    `);
+
+    const results = await Promise.all(scis.rows.map(async (sci: any) => {
+      try {
+        // 1. Récupérer les comptes bancaires
+        const accountsRes = await fetch(`${PENNYLANE_BASE}/bank_accounts`, {
+          headers: pennylaneHeaders(sci.pennylane_api_token),
+        });
+
+        if (!accountsRes.ok) {
+          return { sci_id: sci.id, sci_name: sci.name, error: `Scope manquant (HTTP ${accountsRes.status})`, accounts: [] };
+        }
+
+        const accountsData = await accountsRes.json() as any;
+        const accounts = (accountsData.items || accountsData.bank_accounts || []) as any[];
+
+        // 2. Récupérer les transactions récentes pour le flux de tréso (30 derniers jours)
+        const dateFrom = new Date();
+        dateFrom.setDate(dateFrom.getDate() - 90);
+        const dateFromStr = dateFrom.toISOString().split('T')[0];
+
+        const txRes = await fetch(
+          `${PENNYLANE_BASE}/transactions?limit=500&filter[date][gte]=${dateFromStr}`,
+          { headers: pennylaneHeaders(sci.pennylane_api_token) }
+        );
+
+        let monthlyFlow: Record<string, { income: number; expenses: number }> = {};
+        if (txRes.ok) {
+          const txData = await txRes.json() as any;
+          const transactions = txData.items || [];
+
+          for (const tx of transactions) {
+            const month = (tx.date || '').substring(0, 7); // YYYY-MM
+            if (!month) continue;
+            if (!monthlyFlow[month]) monthlyFlow[month] = { income: 0, expenses: 0 };
+            const amount = parseFloat(tx.amount || 0);
+            if (amount > 0) monthlyFlow[month].income   += amount;
+            else             monthlyFlow[month].expenses += Math.abs(amount);
+          }
+        }
+
+        const totalBalance = accounts.reduce((sum: number, acc: any) =>
+          sum + parseFloat(acc.balance || acc.current_balance || 0), 0
+        );
+
+        return {
+          sci_id:       sci.id,
+          sci_name:     sci.name,
+          total_balance: totalBalance,
+          accounts:     accounts.map((acc: any) => ({
+            id:      acc.id,
+            name:    acc.name || acc.label || `Compte ${acc.id}`,
+            balance: parseFloat(acc.balance || acc.current_balance || 0),
+            iban:    acc.iban || null,
+            currency: acc.currency || 'EUR',
+          })),
+          monthly_flow: Object.entries(monthlyFlow)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([month, flow]) => ({ month, ...flow })),
+        };
+      } catch (err: any) {
+        return { sci_id: sci.id, sci_name: sci.name, error: err.message, accounts: [] };
+      }
+    }));
+
+    const grandTotal = results.reduce((sum, r: any) => sum + (r.total_balance || 0), 0);
+
+    res.json({ scis: results, grand_total: grandTotal });
+  } catch (err: any) {
+    console.error('getTreasury error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
