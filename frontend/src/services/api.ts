@@ -88,7 +88,7 @@ export const bauxAPI = {
 export const quittancesAPI = {
   getAll: (params?: any)                      => api.get('/quittances', { params }),
   getById: (id: number)                       => api.get(`/quittances/${id}`),
-  generate: (data: { mois: number; annee: number; bail_ids?: number[] }) =>
+  generate: (data: { mois?: number; annee: number; bail_ids?: number[]; toute_annee?: boolean }) =>
                                                  api.post('/quittances/generate', data),
   getPDF: (id: number)                        => api.get(`/quittances/${id}/pdf`, { responseType: 'blob' }),
   markPaid: (id: number, date?: string)       => api.post(`/quittances/${id}/paid`, { date_paiement: date }),

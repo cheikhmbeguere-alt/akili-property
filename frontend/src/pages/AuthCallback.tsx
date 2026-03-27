@@ -22,11 +22,11 @@ export default function AuthCallback() {
       navigate('/', { replace: true })
     } else {
       const messages: Record<string, string> = {
-        microsoft_auth_failed: 'Échec de l\'authentification Microsoft',
-        token_exchange_failed: 'Erreur lors de l\'échange du token',
-        no_email:              'Impossible de récupérer votre email Microsoft',
-        unauthorized:          'Votre compte n\'est pas autorisé à accéder à cette application',
-        server_error:          'Erreur serveur lors de la connexion',
+        microsoft_auth_failed: "Échec de l'authentification Microsoft",
+        token_exchange_failed: "Erreur lors de l'échange du token",
+        no_email:              "Impossible de récupérer votre email Microsoft",
+        unauthorized:          "Votre compte n'est pas autorisé à accéder à cette application",
+        server_error:          "Erreur serveur lors de la connexion",
       }
       toast.error(messages[error || ''] || 'Erreur de connexion Microsoft')
       navigate('/login', { replace: true })

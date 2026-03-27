@@ -64,25 +64,25 @@ body {
     border-color: var(--border);
   }
 
-  /* KPI metric cards */
+  /* KPI metric cards — palette crème unifiée */
   .metric-card-1 { background-color: var(--gold-pale);  border-color: var(--gold-light); }
   .metric-card-2 { background-color: #f0ece0;           border-color: #ddd5b8; }
-  .metric-card-3 { background-color: var(--black);      border-color: var(--black); }
-  .metric-card-4 { background-color: white;             border-color: var(--border); }
+  .metric-card-3 { background-color: #e9e4d0;           border-color: #d5ceae; }
+  .metric-card-4 { background-color: #faf8f3;           border-color: var(--border); }
 
   .metric-value-1 { color: var(--gold-dark); }
   .metric-value-2 { color: var(--gold-mid); }
-  .metric-value-3 { color: white; }
+  .metric-value-3 { color: var(--black); }
   .metric-value-4 { color: var(--black); }
 
   .metric-label-1 { color: #a09550; }
   .metric-label-2 { color: #9a8b45; }
-  .metric-label-3 { color: var(--gold-light); }
+  .metric-label-3 { color: #7a7050; }
   .metric-label-4 { color: var(--gray-soft); }
 
   .metric-icon-1 { background-color: var(--gold-light); color: var(--gold-dark); }
   .metric-icon-2 { background-color: #ddd5b8;           color: #7a6f39; }
-  .metric-icon-3 { background-color: rgba(255,255,255,0.12); color: var(--gold-light); }
+  .metric-icon-3 { background-color: #ccc6a8;           color: #5a5230; }
   .metric-icon-4 { background-color: var(--gold-pale);  color: var(--gold-dark); }
 
   /* Badges */

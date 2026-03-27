@@ -61,7 +61,7 @@ export default function Dashboard() {
   // Base de calcul : surface immeuble si renseignée, sinon fallback sur lots
   const surfaceBase = surfaceImmeuble > 0 ? surfaceImmeuble : surfaceLots
   const surfaceVacante = surfaceBase - surfaceLouee
-  const surfaceNonAllouee = Math.max(0, surfaceImmeuble - surfaceLots) // non alloué en lots
+
   const tauxOccupation = surfaceBase > 0 ? (surfaceLouee / surfaceBase) * 100 : 0
 
   const loyerAnnuelTotal = bailsActifs.reduce((sum: number, bail: any) => {
@@ -161,21 +161,21 @@ export default function Dashboard() {
         <MetricCard
           label="Taux d'occupation"
           value={`${tauxOccupation.toFixed(1)} %`}
-          sub={`${surfaceLouee.toFixed(0)} m² loués · ${surfaceVacante.toFixed(0)} m² vacants · ${surfaceBase.toFixed(0)} m² bâti${surfaceNonAllouee > 0 ? ` (${surfaceNonAllouee.toFixed(0)} m² non alloués en lots)` : ''}`}
+          sub={`${surfaceLouee.toFixed(0)} m² loués · ${surfaceVacante.toFixed(0)} m² vacants`}
           emoji="📊"
           theme={2}
         />
         <MetricCard
           label="Baux actifs"
           value={String(bailsActifs.length)}
-          sub={`${bailList.length} total`}
+          sub={`sur ${lotList.length} lot${lotList.length > 1 ? 's' : ''}`}
           emoji="📋"
           theme={3}
         />
         <MetricCard
           label="Locataires"
           value={String(locataireList.length)}
-          sub={`${sciList.length} SCI · ${immeubleList.length} immeubles`}
+          sub={`${sciList.length} SCI · ${immeubleList.length} immeuble${immeubleList.length > 1 ? 's' : ''}`}
           emoji="👥"
           theme={4}
         />

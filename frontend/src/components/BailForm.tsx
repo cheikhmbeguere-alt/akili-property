@@ -34,6 +34,7 @@ export default function BailForm({ onSubmit, onCancel, initialData, isEdit = fal
     depot_garantie: '',
     depot_garantie_received_date: '',
     indexation_applicable: true,
+    indexation_frequency: 'annuelle',
     indice_id: '1',
     indice_base_value: '',
     indice_base_year: new Date().getFullYear().toString(),
@@ -103,6 +104,7 @@ export default function BailForm({ onSubmit, onCancel, initialData, isEdit = fal
       depot_garantie: initialData.depot_garantie || '',
       depot_garantie_received_date: fmtDateInput(initialData.depot_garantie_received_date),
       indexation_applicable: initialData.indexation_applicable !== false,
+      indexation_frequency: initialData.indexation_frequency || 'annuelle',
       indice_id: initialData.indice_id?.toString() || '1',
       indice_base_value: initialData.indice_base_value || '',
       indice_base_year: initialData.indice_base_year?.toString() || new Date().getFullYear().toString(),
@@ -167,6 +169,7 @@ export default function BailForm({ onSubmit, onCancel, initialData, isEdit = fal
         indice_base_quarter: formData.indexation_applicable && formData.indice_base_quarter ? parseInt(formData.indice_base_quarter) : null,
         indexation_date_month: formData.indexation_applicable && formData.indexation_date_month ? parseInt(formData.indexation_date_month) : null,
         indexation_date_day: formData.indexation_applicable && formData.indexation_date_day ? parseInt(formData.indexation_date_day) : null,
+        indexation_frequency: formData.indexation_applicable ? formData.indexation_frequency : null,
         end_date: formData.end_date || null,
         depot_garantie_received_date: formData.depot_garantie_received_date || null,
         franchise_start_date: formData.franchise_start_date || null,
@@ -497,6 +500,15 @@ export default function BailForm({ onSubmit, onCancel, initialData, isEdit = fal
                 <option value="2">T2</option>
                 <option value="3">T3</option>
                 <option value="4">T4</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Fréquence révision</label>
+              <select name="indexation_frequency" value={formData.indexation_frequency} onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none">
+                <option value="annuelle">Annuelle</option>
+                <option value="triennale">Triennale (3 ans)</option>
               </select>
             </div>
 

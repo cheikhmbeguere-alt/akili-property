@@ -661,17 +661,26 @@ export default function Indexations() {
                 )}
                 <span><span style={{ color: '#9ca3af' }}>Indice</span> <strong style={{ color: '#978A47' }}>{rattrapageData.indice_code}</strong></span>
                 <span><span style={{ color: '#9ca3af' }}>Trimestre référence</span> <strong style={{ color: '#1a1a1a' }}>T{rattrapageData.ref_quarter}</strong></span>
+                <span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{
+                      backgroundColor: rattrapageData.indexation_frequency === 'triennale' ? '#fef3c7' : '#f0fdf4',
+                      color: rattrapageData.indexation_frequency === 'triennale' ? '#92400e' : '#166534',
+                    }}>
+                    {rattrapageData.indexation_frequency === 'triennale' ? '⏳ Triennale (tous les 3 ans)' : '📅 Annuelle'}
+                  </span>
+                </span>
                 {rattrapageData.solde_reprise_date && (
                   <span><span style={{ color: '#9ca3af' }}>Date reprise</span> <strong style={{ color: '#1a1a1a' }}>{new Date(rattrapageData.solde_reprise_date).toLocaleDateString('fr-FR')}</strong></span>
                 )}
               </div>
 
-              <div className="overflow-x-auto">
+              <div>
                 <table className="w-full text-sm">
                   <thead>
                     <tr style={{ backgroundColor: '#faf9f7', borderBottom: '1px solid #ede9e6' }}>
-                      {['Année', 'Date anniversaire', 'Indice T{ref} N-1', 'Indice T{ref} N', 'Loyer avant', 'Loyer après', 'Variation', 'Statut'].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap"
+                      {['Année', 'Indices (N-1 → N)', 'Loyer mensuel avant', 'Loyer mensuel après', 'Loyer annuel', 'Variation', 'Statut'].map(h => (
+                        <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap"
                           style={{ color: '#9ca3af' }}>{h}</th>
                       ))}
                     </tr>
@@ -680,31 +689,39 @@ export default function Indexations() {
                     {rattrapageData.rows.map((row: any) => (
                       <tr key={row.year} className="border-b" style={{ borderColor: '#f5f3f0',
                         backgroundColor: row.already_done ? '#f0fdf4' : row.can_apply ? 'white' : '#fffbeb' }}>
-                        <td className="px-4 py-3 font-bold" style={{ color: '#1a1a1a' }}>{row.year}</td>
-                        <td className="px-4 py-3 text-xs" style={{ color: '#6b7280' }}>
-                          {new Date(row.anniversary_date).toLocaleDateString('fr-FR')}
+                        <td className="px-3 py-2.5 font-bold" style={{ color: '#1a1a1a' }}>
+                          {row.year}
+                          <div className="text-xs font-normal" style={{ color: '#9ca3af' }}>
+                            {new Date(row.anniversary_date).toLocaleDateString('fr-FR')}
+                          </div>
                         </td>
-                        <td className="px-4 py-3 text-xs font-mono" style={{ color: '#6b7280' }}>
-                          {row.indice_ancien != null
-                            ? <span>{row.ref_year_ancien} T{row.ref_quarter} = <strong style={{ color: '#1a1a1a' }}>{row.indice_ancien?.toFixed(2)}</strong></span>
-                            : <span style={{ color: '#d97706' }}>⚠️ Manquant</span>}
+                        <td className="px-3 py-2.5 text-xs font-mono">
+                          {row.indice_ancien != null && row.indice_nouveau != null ? (
+                            <span>
+                              <span style={{ color: '#6b7280' }}>{row.ref_year_ancien} T{row.ref_quarter} = </span>
+                              <strong style={{ color: '#1a1a1a' }}>{row.indice_ancien.toFixed(2)}</strong>
+                              <span style={{ color: '#9ca3af' }}> → </span>
+                              <span style={{ color: '#6b7280' }}>{row.ref_year_nouveau} T{row.ref_quarter} = </span>
+                              <strong style={{ color: '#1a1a1a' }}>{row.indice_nouveau.toFixed(2)}</strong>
+                            </span>
+                          ) : (
+                            <span style={{ color: '#d97706' }}>⚠️ Indice manquant</span>
+                          )}
                         </td>
-                        <td className="px-4 py-3 text-xs font-mono" style={{ color: '#6b7280' }}>
-                          {row.indice_nouveau != null
-                            ? <span>{row.ref_year_nouveau} T{row.ref_quarter} = <strong style={{ color: '#1a1a1a' }}>{row.indice_nouveau?.toFixed(2)}</strong></span>
-                            : <span style={{ color: '#d97706' }}>⚠️ Manquant</span>}
-                        </td>
-                        <td className="px-4 py-3" style={{ color: '#6b7280' }}>{formatEur(row.loyer_base)}</td>
-                        <td className="px-4 py-3 font-semibold" style={{ color: row.nouveau_loyer ? '#16a34a' : '#9ca3af' }}>
+                        <td className="px-3 py-2.5" style={{ color: '#6b7280' }}>{formatEur(row.loyer_base)}</td>
+                        <td className="px-3 py-2.5 font-semibold" style={{ color: row.nouveau_loyer ? '#16a34a' : '#9ca3af' }}>
                           {row.nouveau_loyer ? formatEur(row.nouveau_loyer) : '—'}
                         </td>
-                        <td className="px-4 py-3 text-xs font-semibold"
+                        <td className="px-3 py-2.5 font-semibold" style={{ color: row.nouveau_loyer ? '#0891b2' : '#9ca3af' }}>
+                          {row.nouveau_loyer ? formatEur(row.nouveau_loyer * 12) : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-xs font-semibold"
                           style={{ color: row.variation_pct == null ? '#9ca3af' : row.variation_pct < 0 ? '#be123c' : '#16a34a' }}>
                           {row.variation_pct != null
                             ? `${row.variation_pct >= 0 ? '+' : ''}${row.variation_pct.toFixed(2)} %`
                             : '—'}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-2.5">
                           {row.already_done ? (
                             <span className="text-xs font-medium px-2 py-0.5 rounded-full"
                               style={{ backgroundColor: '#dcfce7', color: '#166534' }}>
@@ -723,7 +740,7 @@ export default function Indexations() {
                           ) : (
                             <span className="text-xs px-2 py-0.5 rounded-full"
                               style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>
-                              ⚠️ Indice manquant
+                              ⚠️ Manquant
                             </span>
                           )}
                         </td>

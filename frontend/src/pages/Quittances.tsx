@@ -50,14 +50,18 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Modal génération ─────────────────────────────────────────────────────────
 function GenerateModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const now = new Date()
-  const [mois, setMois]       = useState(now.getMonth() + 1)
-  const [annee, setAnnee]     = useState(now.getFullYear())
-  const [loading, setLoading] = useState(false)
+  const [mois, setMois]           = useState(now.getMonth() + 1)
+  const [annee, setAnnee]         = useState(now.getFullYear())
+  const [touteAnnee, setTouteAnnee] = useState(false)
+  const [loading, setLoading]     = useState(false)
 
   const handleGenerate = async () => {
     setLoading(true)
     try {
-      const res = await quittancesAPI.generate({ mois, annee })
+      const payload = touteAnnee
+        ? { annee, toute_annee: true }
+        : { mois, annee }
+      const res = await quittancesAPI.generate(payload)
       const { created_count, skipped_count } = res.data
       toast.success(`${created_count} document(s) généré(s) — ${skipped_count} ignoré(s)`)
       onSuccess()
@@ -81,17 +85,41 @@ function GenerateModal({ onClose, onSuccess }: { onClose: () => void; onSuccess:
           Génère quittances, appels de loyer et factures pour tous les baux actifs de la période.
         </p>
 
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className="block text-xs font-semibold mb-1" style={{ color: '#374151' }}>Mois</label>
-            <select value={mois} onChange={e => setMois(parseInt(e.target.value))}
-              className="w-full border rounded-lg px-3 py-2 text-sm outline-none"
-              style={{ borderColor: '#e2e8f0' }}>
-              {MOIS_FR.slice(1).map((m, i) => (
-                <option key={i + 1} value={i + 1}>{m}</option>
-              ))}
-            </select>
-          </div>
+        {/* Toggle mois / toute l'année */}
+        <div className="flex rounded-lg overflow-hidden border mb-5" style={{ borderColor: '#e2e8f0' }}>
+          <button
+            onClick={() => setTouteAnnee(false)}
+            className="flex-1 py-2 text-xs font-semibold transition-colors"
+            style={{
+              backgroundColor: !touteAnnee ? '#1a1a1a' : 'white',
+              color: !touteAnnee ? 'white' : '#6b7280',
+            }}>
+            Par mois
+          </button>
+          <button
+            onClick={() => setTouteAnnee(true)}
+            className="flex-1 py-2 text-xs font-semibold transition-colors"
+            style={{
+              backgroundColor: touteAnnee ? '#1a1a1a' : 'white',
+              color: touteAnnee ? 'white' : '#6b7280',
+            }}>
+            Toute l'année
+          </button>
+        </div>
+
+        <div className={`grid gap-4 mb-6 ${touteAnnee ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          {!touteAnnee && (
+            <div>
+              <label className="block text-xs font-semibold mb-1" style={{ color: '#374151' }}>Mois</label>
+              <select value={mois} onChange={e => setMois(parseInt(e.target.value))}
+                className="w-full border rounded-lg px-3 py-2 text-sm outline-none"
+                style={{ borderColor: '#e2e8f0' }}>
+                {MOIS_FR.slice(1).map((m, i) => (
+                  <option key={i + 1} value={i + 1}>{m}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-semibold mb-1" style={{ color: '#374151' }}>Année</label>
             <input type="number" value={annee} onChange={e => setAnnee(parseInt(e.target.value))}
@@ -115,7 +143,7 @@ function GenerateModal({ onClose, onSuccess }: { onClose: () => void; onSuccess:
           <button onClick={handleGenerate} disabled={loading}
             className="px-4 py-2 text-sm font-medium rounded-lg text-white disabled:opacity-50"
             style={{ backgroundColor: '#1a1a1a' }}>
-            {loading ? 'Génération…' : `Générer ${MOIS_FR[mois]} ${annee}`}
+            {loading ? 'Génération…' : touteAnnee ? `Générer ${annee} (12 mois)` : `Générer ${MOIS_FR[mois]} ${annee}`}
           </button>
         </div>
       </div>
@@ -372,17 +400,18 @@ export default function Quittances() {
                             )}
                           </Protect>
 
-                          {/* Annuler */}
-                          <Protect minRole="admin">
+                          {/* Annuler / Avoir */}
+                          <Protect minRole="editor">
                             {q.status !== 'annule' && (
                               <button
                                 onClick={() => {
-                                  if (confirm('Annuler ce document ? Cette action est irréversible.'))
+                                  if (confirm('Annuler ce document et émettre un avoir ? Un avoir sera généré pour contrebalancer cette facture.'))
                                     cancelMutation.mutate(q.id)
                                 }}
+                                title="Annuler / Émettre un avoir"
                                 className="text-xs px-2.5 py-1 rounded-lg transition-colors"
                                 style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}>
-                                ✕
+                                Annuler
                               </button>
                             )}
                           </Protect>
